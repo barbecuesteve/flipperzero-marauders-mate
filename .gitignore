@@ -18,3 +18,9 @@ dumps/*
 !dumps/list_sample.log
 !dumps/scanall_sample.txt
 splash_resized.png
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
+.beads/proxieddb/

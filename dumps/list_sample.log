@@ -1,0 +1,26 @@
+#list -a
+[0][CH:2] Sunflower -72
+[1][CH:2] Sunflower -77
+[2][CH:2] 02:00:00:00:00:02 -77
+[3][CH:2] 02:00:00:00:00:03 -71
+[4][CH:3] Harbor View -57
+[5][CH:3] 02:00:00:00:00:05 -58
+[6][CH:3] Home-IoT -85
+[7][CH:3] Trailhead -88
+[8][CH:3] 02:00:00:00:00:08 -88
+[9][CH:3] 02:00:00:00:00:09 -88
+[10][CH:6] Router_A1B2C3 -81
+[11][CH:7] 02:00:00:00:00:0b -75
+[12][CH:7] Waldhaus -74
+[13][CH:8] coffee_shop -86
+[14][CH:9] guest_net -83
+[15][CH:9] 02:00:00:00:00:0f -84
+[16][CH:10] MixedCase_WiFi -71
+[17][CH:11] 4821_Oakwood -87
+[18][CH:11] 4833-WDS -48
+[19][CH:11] Setup7 -85
+[20][CH:3] Trailhead -87
+0 selected
+> #stopscan
+Stopping WiFi tran/recv
+> 

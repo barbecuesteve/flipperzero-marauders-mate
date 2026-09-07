@@ -1,0 +1,17 @@
+App(
+    appid="marauders_mate",
+    name="Marauder's Mate",
+    fap_version=(0, 1),
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="wifi_marauder_app",
+    requires=["gui"],
+    stack_size=8 * 1024,
+    order=90,
+    fap_icon="wifi_10px.png",
+    fap_category="GPIO",
+    fap_icon_assets="assets",
+    # Default recursive glob, minus host-only unit tests (matched by basename).
+    sources=["*.c*", "!*_test.c"],
+    fap_author="Steve (fork of 0xchocolate/flipperzero-wifi-marauder)",
+    fap_description="Marauder's Mate: a friendlier front-end for ESP32 Marauder that parses output into navigable menus instead of raw serial dumps.",
+)

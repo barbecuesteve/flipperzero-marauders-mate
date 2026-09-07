@@ -1,0 +1,456 @@
+#include "marauders_mate_ap_parser.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <ctype.h>
+
+bool mm_ap_is_bssid(const char* s) {
+    if(!s || strlen(s) != 17) return false;
+    for(int i = 0; i < 17; i++) {
+        if((i % 3) == 2) {
+            if(s[i] != ':') return false;
+        } else if(!isxdigit((unsigned char)s[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool mm_ap_parse_line(const char* line, MMAccessPoint* out) {
+    if(!line || !out) return false;
+
+    const char* p = line;
+    while(*p == ' ' || *p == '\t') p++;
+    if(*p != '[') return false;
+    p++;
+
+    // index
+    char* end;
+    long idx = strtol(p, &end, 10);
+    if(end == p || *end != ']') return false;
+    p = end + 1;
+
+    // [CH:<n>]
+    if(strncmp(p, "[CH:", 4) != 0) return false;
+    p += 4;
+    long ch = strtol(p, &end, 10);
+    if(end == p || *end != ']') return false;
+    p = end + 1;
+
+    // remainder: "<name> <rssi>"
+    while(*p == ' ' || *p == '\t') p++;
+    const char* rest = p;
+    size_t len = strlen(rest);
+    while(len > 0 && (rest[len - 1] == '\n' || rest[len - 1] == '\r' ||
+                      rest[len - 1] == ' ' || rest[len - 1] == '\t'))
+        len--;
+    if(len == 0) return false;
+
+    // rssi is the final whitespace-delimited token
+    size_t last_sp = (size_t)-1;
+    for(size_t i = 0; i < len; i++) {
+        if(rest[i] == ' ' || rest[i] == '\t') last_sp = i;
+    }
+    if(last_sp == (size_t)-1) return false; // need both a name and an rssi
+
+    const char* rssi_tok = rest + last_sp + 1;
+    size_t rssi_len = len - (last_sp + 1);
+    char rbuf[16];
+    if(rssi_len == 0 || rssi_len >= sizeof(rbuf)) return false;
+    memcpy(rbuf, rssi_tok, rssi_len);
+    rbuf[rssi_len] = '\0';
+    char* rend;
+    long rssi = strtol(rbuf, &rend, 10);
+    if(rend == rbuf || *rend != '\0') return false;
+
+    // name is everything before that last whitespace, trimmed
+    size_t name_len = last_sp;
+    while(name_len > 0 && (rest[name_len - 1] == ' ' || rest[name_len - 1] == '\t'))
+        name_len--;
+    if(name_len == 0) return false;
+    if(name_len >= MM_AP_NAME_MAX) name_len = MM_AP_NAME_MAX - 1;
+    memcpy(out->name, rest, name_len);
+    out->name[name_len] = '\0';
+
+    out->index = (int)idx;
+    out->channel = (int)ch;
+    out->rssi = (int)rssi;
+    out->hidden = mm_ap_is_bssid(out->name);
+    return true;
+}
+
+size_t mm_ap_parse_buffer(const char* text, MMAccessPoint* out, size_t max) {
+    if(!text || !out) return 0;
+    size_t count = 0;
+    const char* p = text;
+    char line[128];
+    while(*p && count < max) {
+        const char* nl = strchr(p, '\n');
+        size_t linelen = nl ? (size_t)(nl - p) : strlen(p);
+        size_t cpy = linelen < sizeof(line) - 1 ? linelen : sizeof(line) - 1;
+        memcpy(line, p, cpy);
+        line[cpy] = '\0';
+        if(mm_ap_parse_line(line, &out[count])) count++;
+        if(!nl) break;
+        p = nl + 1;
+    }
+    return count;
+}
+
+// --------------------------------------------------------------------------
+// scanall support
+// --------------------------------------------------------------------------
+
+// Skip leading whitespace and a single "> " prompt.
+static const char* mm_skip_prompt(const char* p) {
+    while(*p == ' ' || *p == '\t') p++;
+    if(p[0] == '>' && p[1] == ' ') {
+        p += 2;
+        while(*p == ' ' || *p == '\t') p++;
+    }
+    return p;
+}
+
+MMScanLineType mm_scanall_classify(const char* line) {
+    if(!line) return MMScanLineNone;
+    if(strstr(line, "ESSID:")) return MMScanLineAp;
+    if(strstr(line, "->")) return MMScanLineStation;
+    return MMScanLineNone;
+}
+
+bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
+    if(!line || !out) return false;
+    const char* p = mm_skip_prompt(line);
+
+    char* end;
+    long rssi = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "Ch:", 3) != 0) return false;
+    p += 3;
+    while(*p == ' ') p++;
+    long ch = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    // BSSID token
+    const char* bstart = p;
+    while(*p && *p != ' ' && *p != '\t') p++;
+    if((size_t)(p - bstart) != 17) return false;
+    char bssid[MM_BSSID_LEN];
+    memcpy(bssid, bstart, 17);
+    bssid[17] = '\0';
+    if(!mm_ap_is_bssid(bssid)) return false;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "ESSID:", 6) != 0) return false;
+    p += 6;
+
+    // Remainder holds "<ssid> <m1> <m2>". Strip trailing whitespace, then drop
+    // the two trailing metadata tokens positionally; what's left is the ESSID.
+    const char* rem = p;
+    size_t rlen = strlen(rem);
+    while(rlen > 0 && (rem[rlen - 1] == '\n' || rem[rlen - 1] == '\r' ||
+                       rem[rlen - 1] == ' ' || rem[rlen - 1] == '\t'))
+        rlen--;
+
+    size_t i = rlen;
+    for(int tok = 0; tok < 2; tok++) {
+        while(i > 0 && rem[i - 1] != ' ' && rem[i - 1] != '\t') i--; // skip token
+        while(i > 0 && (rem[i - 1] == ' ' || rem[i - 1] == '\t')) i--; // skip gap
+    }
+    size_t essid_end = i;
+
+    size_t s = 0;
+    while(s < essid_end && (rem[s] == ' ' || rem[s] == '\t')) s++;
+    while(essid_end > s && (rem[essid_end - 1] == ' ' || rem[essid_end - 1] == '\t')) essid_end--;
+    size_t essid_len = essid_end - s;
+
+    char ssid[MM_AP_NAME_MAX];
+    if(essid_len >= MM_AP_NAME_MAX) essid_len = MM_AP_NAME_MAX - 1;
+    memcpy(ssid, rem + s, essid_len);
+    ssid[essid_len] = '\0';
+
+    strcpy(out->bssid, bssid);
+    out->channel = (int)ch;
+    out->rssi = (int)rssi;
+    if(essid_len == 0 || strcmp(ssid, bssid) == 0) {
+        out->hidden = true;
+        out->ssid[0] = '\0';
+    } else {
+        out->hidden = false;
+        strcpy(out->ssid, ssid);
+    }
+    return true;
+}
+
+// Parse "<label>: <mac>" where label is "ap" or "sta". Advances nothing;
+// operates on [s, e). Sets *is_ap and copies the MAC.
+static bool mm_parse_side(const char* s, const char* e, bool* is_ap, char* mac_out) {
+    while(s < e && (*s == ' ' || *s == '\t')) s++;
+    if(e - s >= 3 && strncmp(s, "ap:", 3) == 0) {
+        *is_ap = true;
+        s += 3;
+    } else if(e - s >= 4 && strncmp(s, "sta:", 4) == 0) {
+        *is_ap = false;
+        s += 4;
+    } else {
+        return false;
+    }
+    while(s < e && (*s == ' ' || *s == '\t')) s++;
+    while(e > s && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\n' || e[-1] == '\r')) e--;
+    if((e - s) != 17) return false;
+    char mac[MM_BSSID_LEN];
+    memcpy(mac, s, 17);
+    mac[17] = '\0';
+    if(!mm_ap_is_bssid(mac)) return false;
+    strcpy(mac_out, mac);
+    return true;
+}
+
+bool mm_scanall_parse_station(const char* line, char* ap_bssid_out, char* sta_mac_out) {
+    if(!line || !ap_bssid_out || !sta_mac_out) return false;
+    const char* p = mm_skip_prompt(line);
+
+    char* end;
+    strtol(p, &end, 10); // leading counter, value unused
+    if(end == p || *end != ':') return false;
+    p = end + 1;
+
+    const char* lend = p + strlen(p);
+    const char* arrow = strstr(p, "->");
+    if(!arrow) return false;
+
+    bool is_ap1, is_ap2;
+    char m1[MM_BSSID_LEN], m2[MM_BSSID_LEN];
+    if(!mm_parse_side(p, arrow, &is_ap1, m1)) return false;
+    if(!mm_parse_side(arrow + 2, lend, &is_ap2, m2)) return false;
+    if(is_ap1 == is_ap2) return false; // exactly one ap and one sta
+
+    if(is_ap1) {
+        strcpy(ap_bssid_out, m1);
+        strcpy(sta_mac_out, m2);
+    } else {
+        strcpy(ap_bssid_out, m2);
+        strcpy(sta_mac_out, m1);
+    }
+    return true;
+}
+
+int mm_scan_store_upsert(
+    MMScanAp* store,
+    int* count,
+    int max,
+    const MMScanAp* ap,
+    bool* is_new) {
+    for(int i = 0; i < *count; i++) {
+        if(strcmp(store[i].bssid, ap->bssid) == 0) {
+            store[i].rssi = ap->rssi;
+            store[i].channel = ap->channel;
+            if(!ap->hidden) { // a named sighting fills in a previously-hidden SSID
+                store[i].hidden = false;
+                strcpy(store[i].ssid, ap->ssid);
+            }
+            if(is_new) *is_new = false;
+            return i;
+        }
+    }
+    if(*count >= max) {
+        if(is_new) *is_new = false;
+        return -1;
+    }
+    store[*count] = *ap;
+    int idx = *count;
+    (*count)++;
+    if(is_new) *is_new = true;
+    return idx;
+}
+
+int mm_resolve_select_index(
+    const MMScanAp* target,
+    int discovery_index,
+    const MMAccessPoint* list_a,
+    int list_a_count) {
+    if(!target || !list_a) return -1;
+
+    // 1) Trust discovery order if the row at that index verifies.
+    if(discovery_index >= 0 && discovery_index < list_a_count) {
+        const MMAccessPoint* row = &list_a[discovery_index];
+        if(target->hidden) {
+            if(row->hidden && strcmp(row->name, target->bssid) == 0) return discovery_index;
+        } else {
+            if(!row->hidden && strcmp(row->name, target->ssid) == 0) return discovery_index;
+        }
+    }
+
+    // 2) Fallback: accept only a unique content match.
+    int found = -1;
+    for(int i = 0; i < list_a_count; i++) {
+        const MMAccessPoint* row = &list_a[i];
+        bool match = target->hidden ? (row->hidden && strcmp(row->name, target->bssid) == 0) :
+                                      (!row->hidden && strcmp(row->name, target->ssid) == 0);
+        if(match) {
+            if(found == -1)
+                found = i;
+            else
+                return -1; // ambiguous
+        }
+    }
+    return found;
+}
+
+// --------------------------------------------------------------------------
+// `list -c` support
+// --------------------------------------------------------------------------
+
+bool mm_listc_parse_ap_header(const char* line, int* ap_index) {
+    if(!line || !ap_index) return false;
+    if(line[0] != '[') return false; // AP headers are not indented
+    char* end;
+    long idx = strtol(line + 1, &end, 10);
+    if(end == line + 1 || *end != ']') return false;
+    // Must end with ':' after trailing whitespace.
+    size_t n = strlen(line);
+    while(n > 0 && (line[n - 1] == '\r' || line[n - 1] == '\n' || line[n - 1] == ' ')) n--;
+    if(n == 0 || line[n - 1] != ':') return false;
+    *ap_index = (int)idx;
+    return true;
+}
+
+bool mm_listc_parse_station(const char* line, int* sel_index, char* mac_out) {
+    if(!line || !sel_index || !mac_out) return false;
+    const char* p = line;
+    if(*p != ' ' && *p != '\t') return false; // stations are indented
+    while(*p == ' ' || *p == '\t') p++;
+    if(*p != '[') return false;
+    char* end;
+    long idx = strtol(p + 1, &end, 10);
+    if(end == p + 1 || *end != ']') return false;
+    p = end + 1;
+    while(*p == ' ') p++;
+    size_t n = strlen(p);
+    while(n > 0 && (p[n - 1] == '\r' || p[n - 1] == '\n' || p[n - 1] == ' ')) n--;
+    if(n != 17) return false;
+    char mac[MM_BSSID_LEN];
+    memcpy(mac, p, 17);
+    mac[17] = '\0';
+    if(!mm_ap_is_bssid(mac)) return false;
+    *sel_index = (int)idx;
+    strcpy(mac_out, mac);
+    return true;
+}
+
+// --------------------------------------------------------------------------
+// Fox Hunt support
+// --------------------------------------------------------------------------
+
+bool mm_foxhunt_parse_rssi(const char* line, int* rssi) {
+    if(!line || !rssi) return false;
+    const char* p = strstr(line, "RSSI:");
+    if(!p) return false;
+    p += 5; // past "RSSI:"
+    while(*p == ' ' || *p == '\t') p++;
+    char* end;
+    long v = strtol(p, &end, 10);
+    if(end == p) return false;
+    *rssi = (int)v;
+    return true;
+}
+
+void mm_sanitize_nuls(uint8_t* buf, size_t len) {
+    if(!buf) return;
+    for(size_t i = 0; i < len; i++) {
+        if(buf[i] == 0) buf[i] = ' ';
+    }
+}
+
+bool mm_listi_parse_ip(const char* line, char* ip_out) {
+    if(!line || !ip_out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t') p++;
+    if(*p != '[') return false;
+    char* end;
+    strtol(p + 1, &end, 10);
+    if(end == p + 1 || *end != ']') return false;
+    p = end + 1;
+    while(*p == ' ') p++;
+
+    size_t n = strlen(p);
+    while(n > 0 && (p[n - 1] == '\r' || p[n - 1] == '\n' || p[n - 1] == ' ')) n--;
+    if(n == 0 || n >= 16) return false;
+    int dots = 0;
+    for(size_t i = 0; i < n; i++) {
+        char c = p[i];
+        if(c == '.')
+            dots++;
+        else if(c < '0' || c > '9')
+            return false;
+    }
+    if(dots != 3) return false;
+    memcpy(ip_out, p, n);
+    ip_out[n] = '\0';
+    return true;
+}
+
+bool mm_beacon_parse_line(const char* line, MMScanAp* out) {
+    if(!line || !out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t') p++;
+    if(p[0] == '>' && p[1] == ' ') {
+        p += 2;
+        while(*p == ' ') p++;
+    }
+
+    char* end;
+    long rssi = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "Ch:", 3) != 0) return false;
+    p += 3;
+    while(*p == ' ') p++;
+    long ch = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    const char* bstart = p;
+    while(*p && *p != ' ' && *p != '\t') p++;
+    if((size_t)(p - bstart) != 17) return false;
+    char bssid[MM_BSSID_LEN];
+    memcpy(bssid, bstart, 17);
+    bssid[17] = '\0';
+    if(!mm_ap_is_bssid(bssid)) return false;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "ESSID:", 6) != 0) return false;
+    p += 6;
+    while(*p == ' ') p++;
+
+    // ESSID runs to end of line (no trailing metadata for sniffbeacon).
+    const char* rem = p;
+    size_t n = strlen(rem);
+    while(n > 0 && (rem[n - 1] == '\r' || rem[n - 1] == '\n' || rem[n - 1] == ' ' ||
+                    rem[n - 1] == '\t'))
+        n--;
+    if(n >= MM_AP_NAME_MAX) n = MM_AP_NAME_MAX - 1;
+    char ssid[MM_AP_NAME_MAX];
+    memcpy(ssid, rem, n);
+    ssid[n] = '\0';
+
+    strcpy(out->bssid, bssid);
+    out->channel = (int)ch;
+    out->rssi = (int)rssi;
+    if(n == 0 || strcmp(ssid, bssid) == 0) {
+        out->hidden = true;
+        out->ssid[0] = '\0';
+    } else {
+        out->hidden = false;
+        strcpy(out->ssid, ssid);
+    }
+    return true;
+}

@@ -1,0 +1,25 @@
+#stopscan
+Stopping WiFi tran/recv
+> #scanall
+Scanning for APs and Stations. Stop with stopscan
+> -85 Ch: 3 02:00:00:00:00:01 ESSID:  02:00:00:00:00:01 31 14 
+-58 Ch: 3 02:00:00:00:00:02 ESSID:             02:00:00:00:00:02 11 04 
+-86 Ch: 3 02:00:00:00:00:03 ESSID: Basecamp 31 14 
+-60 Ch: 3 02:00:00:00:00:04 ESSID: Harbor View 31 04 
+-86 Ch: 3 02:00:00:00:00:05 ESSID: Basecamp-IoT 31 14 
+15: ap: 02:00:00:00:00:04 -> sta: 01:00:5e:7f:ff:fa
+-79 Ch: 6 02:00:00:00:00:06 ESSID: Lantern 31 14 
+-68 Ch: 6 02:00:00:00:00:07 ESSID: Lantern 31 14 
+-69 Ch: 6 02:00:00:00:00:08 ESSID:  02:00:00:00:00:08 31 14 
+16: ap: 02:00:00:00:00:06 -> sta: b8:b7:f1:05:9a:3b
+-67 Ch: 7 02:00:00:00:00:09 ESSID: MixedCase_WiFi 31 14 
+-60 Ch: 8 02:00:00:00:00:0a ESSID:                                02:00:00:00:00:0a 11 15 
+-53 Ch: 11 02:00:00:00:00:0b ESSID: 4833-WDS 31 14 
+17: sta: 48:e1:e9:e7:48:0d -> ap: 02:00:00:00:00:0b
+-83 Ch: 11 02:00:00:00:00:0c ESSID: Setup7 11 04 
+-81 Ch: 8 02:00:00:00:00:0d ESSID: coffee_shop 11 14 
+-85 Ch: 8 02:00:00:00:00:0e ESSID: coffee_shop 11 14 
+18: ap: 02:00:00:00:00:0d -> sta: 01:80:c2:00:00:00
+#stopscan
+Stopping WiFi tran/recv
+> 

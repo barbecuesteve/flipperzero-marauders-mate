@@ -1,0 +1,20 @@
+# Python venv for ufbt
+.venv/
+
+# ufbt build artifacts and SDK state
+.ufbt/
+dist/
+*.fap
+build/
+
+# macOS
+.DS_Store
+
+# ufbt-generated IDE files
+.vscode/compile_commands.json
+
+# Captured serial output (may contain real nearby SSIDs/BSSIDs)
+dumps/*
+!dumps/list_sample.log
+!dumps/scanall_sample.txt
+splash_resized.png

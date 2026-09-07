@@ -72,6 +72,8 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->host_state = MMHostReady; // detail scene forces a fresh scan
     app->beacon_ap_count = 0;
     app->probe_client_count = 0;
+    app->sel_ap_prev = -1;
+    app->sel_sta_prev = -1;
 
     // Marauder's Mate: live scanall state
     app->scan_stream = furi_stream_buffer_alloc(4096, 1);
@@ -197,6 +199,32 @@ void wifi_marauder_app_free(WifiMarauderApp* app) {
     furi_record_close(RECORD_DIALOGS);
 
     free(app);
+}
+
+void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx) {
+    char cmd[24];
+    // Deselect whatever we previously selected, back to a known-empty state.
+    if(app->sel_sta_prev >= 0) {
+        snprintf(cmd, sizeof(cmd), "select -c %d\n", app->sel_sta_prev);
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
+        app->sel_sta_prev = -1;
+    }
+    if(app->sel_ap_prev >= 0) {
+        snprintf(cmd, sizeof(cmd), "select -a %d\n", app->sel_ap_prev);
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
+        app->sel_ap_prev = -1;
+    }
+    // Select only the requested target(s).
+    if(ap_idx >= 0) {
+        snprintf(cmd, sizeof(cmd), "select -a %d\n", ap_idx);
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
+        app->sel_ap_prev = ap_idx;
+    }
+    if(sta_idx >= 0) {
+        snprintf(cmd, sizeof(cmd), "select -c %d\n", sta_idx);
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
+        app->sel_sta_prev = sta_idx;
+    }
 }
 
 int32_t wifi_marauder_app(void* p) {

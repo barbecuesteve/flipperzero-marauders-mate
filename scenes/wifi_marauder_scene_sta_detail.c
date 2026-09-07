@@ -57,11 +57,9 @@ bool wifi_marauder_scene_sta_detail_on_event(void* context, SceneManagerEvent ev
     if(st->sel_index < 0 || ap_resolved < 0) return true; // can't target cleanly
 
     if(event.event == WifiMarauderEventStaDeauth) {
-        // Targeted client deauth needs both the AP and the station selected.
-        snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "select -a %d\n", ap_resolved);
-        wifi_marauder_uart_tx(app->uart, (uint8_t*)app->ap_cmd_buf, strlen(app->ap_cmd_buf));
-        snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "select -c %d\n", st->sel_index);
-        wifi_marauder_uart_tx(app->uart, (uint8_t*)app->ap_cmd_buf, strlen(app->ap_cmd_buf));
+        // Targeted client deauth needs both the AP and the station selected;
+        // clear any prior selection so only this client is hit.
+        mm_select_target(app, ap_resolved, st->sel_index);
 
         app->selected_tx_string = MM_CMD_DEAUTH_C;
         app->is_command = true;

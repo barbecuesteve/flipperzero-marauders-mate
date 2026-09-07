@@ -153,6 +153,8 @@ struct WifiMarauderApp {
     FuriString* ap_scan_buffer; // list -a / list -c text accumulator
     int ap_action; // MMApAction chosen on the detail screen
     char ap_cmd_buf[32]; // scratch for "select -a/-c <n>"
+    int sel_ap_prev; // last AP index WE selected (-1 none) -- Marauder select toggles
+    int sel_sta_prev; // last station index WE selected (-1 none)
 
     // Marauder's Mate: live scanall feature
     MMScanAp scan_aps[MM_AP_MAX]; // BSSID-keyed, array index == discovery order
@@ -228,3 +230,10 @@ typedef enum {
     WifiMarauderAppViewWidget,
     WifiMarauderAppViewSubmenu,
 } WifiMarauderAppView;
+
+// Select exactly one AP (and optionally one station) as the attack target,
+// first deselecting whatever we previously selected. Marauder's `select`
+// toggles and accumulates, so without this a later attack would also hit
+// earlier targets. sta_idx < 0 selects the AP only. Tracks only selections
+// made through the app; selections made via the raw Select menu are the user's.
+void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx);

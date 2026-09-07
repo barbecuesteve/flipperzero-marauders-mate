@@ -49,6 +49,8 @@ Not yet tested on hardware -- feedback from a real board is welcome.
 - [x] Probe Monitor: sniffprobe parsed into a live list of client devices
       (deduped by MAC), counting probes and showing the SSIDs they seek
 - [ ] Deauth Monitor: deferred (needs a real-deauth capture to verify format)
+- [x] Targeted attacks clear prior selections first (Marauder's select
+      accumulates), so a second attack doesn't also hit earlier targets
 - [ ] Keep raw-console view available as a fallback / "advanced" mode
 
 ## Build

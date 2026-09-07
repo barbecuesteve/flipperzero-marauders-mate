@@ -212,6 +212,8 @@ static void wifi_marauder_scan_live_start(WifiMarauderApp* app) {
     app->scan_live_state = MMLiveScanning;
     app->scan_live_ticks = 0;
     app->scan_dirty = false;
+    app->sel_ap_prev = -1; // clearlist -a below wipes Marauder's selections
+    app->sel_sta_prev = -1;
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
     furi_string_reset(app->ap_scan_buffer);

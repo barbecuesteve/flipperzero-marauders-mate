@@ -132,8 +132,7 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
             int resolved = app->scan_resolved_index[app->scan_selected];
             if(resolved < 0) return true; // guard: not targetable
 
-            snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "select -a %d\n", resolved);
-            wifi_marauder_uart_tx(app->uart, (uint8_t*)app->ap_cmd_buf, strlen(app->ap_cmd_buf));
+            mm_select_target(app, resolved, -1); // AP only, clearing any prior selection
 
             switch(app->ap_action) {
             case MMApActionDeauth:

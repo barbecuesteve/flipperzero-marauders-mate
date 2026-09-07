@@ -6,7 +6,8 @@
 // count; legit APs sit at a steady low rate.
 #include "../wifi_marauder_app_i.h"
 
-#define MM_BEACON_REBUILD_TICKS (5) // rebuild ~2/s to keep the GUI responsive
+#define MM_BEACON_REBUILD_TICKS (5)
+#define MM_LINES_PER_TICK (24) // cap lines parsed per tick to avoid GUI lockups
 
 static int s_order[MM_AP_MAX]; // display order (by hit count desc), GUI-thread only
 
@@ -97,6 +98,7 @@ bool wifi_marauder_scene_beacon_mon_on_event(void* context, SceneManagerEvent ev
         uint8_t tmp[129];
         size_t got;
         bool changed = false;
+        int processed = 0;
         while((got = furi_stream_buffer_receive(app->scan_stream, tmp, sizeof(tmp) - 1, 0)) > 0) {
             mm_sanitize_nuls(tmp, got);
             tmp[got] = '\0';
@@ -113,6 +115,7 @@ bool wifi_marauder_scene_beacon_mon_on_event(void* context, SceneManagerEvent ev
             line[cpy] = '\0';
             if(wifi_marauder_beacon_mon_process_line(app, line)) changed = true;
             furi_string_right(app->scan_line, len + 1);
+            if(++processed >= MM_LINES_PER_TICK) break; // bound GUI-thread work per tick
         }
 
         // Throttled rebuild (~2/s).

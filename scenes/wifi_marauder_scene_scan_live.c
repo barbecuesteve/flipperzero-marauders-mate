@@ -187,6 +187,7 @@ static void wifi_marauder_scan_live_drain(WifiMarauderApp* app) {
         return;
 
     bool changed = false;
+    int processed = 0;
     for(;;) {
         const char* cstr = furi_string_get_cstr(app->scan_line);
         const char* nl = strchr(cstr, '\n');
@@ -198,6 +199,7 @@ static void wifi_marauder_scan_live_drain(WifiMarauderApp* app) {
         line[cpy] = '\0';
         if(wifi_marauder_scan_live_process_line(app, line)) changed = true;
         furi_string_right(app->scan_line, len + 1); // drop the line + newline
+        if(++processed >= 24) break; // bound GUI-thread work per tick
     }
     // Don't rebuild the whole submenu here (10x/s of full re-alloc stalls the
     // GUI thread and drops UART data); just mark dirty and let the tick throttle.

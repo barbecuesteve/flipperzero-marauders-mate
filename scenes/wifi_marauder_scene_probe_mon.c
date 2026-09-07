@@ -6,7 +6,8 @@
 // for. Shows who's around and what networks their devices remember.
 #include "../wifi_marauder_app_i.h"
 
-#define MM_PROBE_REBUILD_TICKS (5) // rebuild ~2/s
+#define MM_PROBE_REBUILD_TICKS (5)
+#define MM_LINES_PER_TICK (24) // cap lines parsed per tick to avoid GUI lockups
 
 static int s_order[MM_AP_MAX]; // display order (by probe count desc), GUI-thread only
 
@@ -100,6 +101,7 @@ bool wifi_marauder_scene_probe_mon_on_event(void* context, SceneManagerEvent eve
         uint8_t tmp[129];
         size_t got;
         bool changed = false;
+        int processed = 0;
         while((got = furi_stream_buffer_receive(app->scan_stream, tmp, sizeof(tmp) - 1, 0)) > 0) {
             mm_sanitize_nuls(tmp, got);
             tmp[got] = '\0';
@@ -116,6 +118,7 @@ bool wifi_marauder_scene_probe_mon_on_event(void* context, SceneManagerEvent eve
             line[cpy] = '\0';
             if(wifi_marauder_probe_mon_process_line(app, line)) changed = true;
             furi_string_right(app->scan_line, len + 1);
+            if(++processed >= MM_LINES_PER_TICK) break; // bound GUI-thread work per tick
         }
         app->probe_ticks++;
         if(changed && (app->probe_ticks % MM_PROBE_REBUILD_TICKS == 0)) {

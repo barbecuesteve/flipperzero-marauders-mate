@@ -270,6 +270,28 @@ int main(void) {
               "beacon banner rejected");
     }
 
+
+    // --- sniffprobe line parsing (client + requested SSID) ---
+    {
+        MMScanAp pr;
+        CHECK(mm_probe_parse_line(
+                  "> -80 Ch: 5 Client: 02:00:00:00:02:01 Requesting: TestNet", &pr),
+              "probe line parses");
+        CHECK(strcmp(pr.bssid, "02:00:00:00:02:01") == 0 && strcmp(pr.ssid, "TestNet") == 0 &&
+                  pr.channel == 5 && pr.rssi == -80 && !pr.hidden,
+              "probe fields");
+        // Empty request -> hidden (broadcast probe).
+        CHECK(mm_probe_parse_line("-88 Ch: 2 Client: 02:00:00:00:02:01 Requesting: ", &pr) &&
+                  pr.hidden,
+              "probe empty request -> hidden");
+        // Requested SSID may contain spaces.
+        CHECK(mm_probe_parse_line("-70 Ch: 6 Client: 02:00:00:00:02:02 Requesting: My Net", &pr) &&
+                  strcmp(pr.ssid, "My Net") == 0,
+              "probe spaced ssid: got '%s'", pr.ssid);
+        CHECK(!mm_probe_parse_line("StartingProbe sniff. Stop with stopscan", &pr),
+              "probe banner rejected");
+    }
+
     free(text);
 
     if(failures == 0) {

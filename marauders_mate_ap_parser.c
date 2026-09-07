@@ -454,3 +454,63 @@ bool mm_beacon_parse_line(const char* line, MMScanAp* out) {
     }
     return true;
 }
+
+bool mm_probe_parse_line(const char* line, MMScanAp* out) {
+    if(!line || !out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t') p++;
+    if(p[0] == '>' && p[1] == ' ') {
+        p += 2;
+        while(*p == ' ') p++;
+    }
+
+    char* end;
+    long rssi = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "Ch:", 3) != 0) return false;
+    p += 3;
+    while(*p == ' ') p++;
+    long ch = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "Client:", 7) != 0) return false;
+    p += 7;
+    while(*p == ' ') p++;
+    const char* mstart = p;
+    while(*p && *p != ' ' && *p != '\t') p++;
+    if((size_t)(p - mstart) != 17) return false;
+    char mac[MM_BSSID_LEN];
+    memcpy(mac, mstart, 17);
+    mac[17] = '\0';
+    if(!mm_ap_is_bssid(mac)) return false;
+    while(*p == ' ') p++;
+
+    if(strncmp(p, "Requesting:", 11) != 0) return false;
+    p += 11;
+    while(*p == ' ') p++;
+
+    const char* rem = p;
+    size_t n = strlen(rem);
+    while(n > 0 && (rem[n - 1] == '\r' || rem[n - 1] == '\n' || rem[n - 1] == ' ' ||
+                    rem[n - 1] == '\t'))
+        n--;
+    if(n >= MM_AP_NAME_MAX) n = MM_AP_NAME_MAX - 1;
+
+    strcpy(out->bssid, mac);
+    out->channel = (int)ch;
+    out->rssi = (int)rssi;
+    if(n == 0) {
+        out->hidden = true; // broadcast/wildcard probe (no SSID)
+        out->ssid[0] = '\0';
+    } else {
+        out->hidden = false;
+        memcpy(out->ssid, rem, n);
+        out->ssid[n] = '\0';
+    }
+    return true;
+}

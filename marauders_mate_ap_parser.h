@@ -124,3 +124,8 @@ bool mm_listi_parse_ip(const char* line, char* ip_out);
 // scanall AP line but with NO trailing metadata tokens -- the ESSID runs to end
 // of line. Fills *out (hidden if the ESSID is empty). Tolerates a "> " prompt.
 bool mm_beacon_parse_line(const char* line, MMScanAp* out);
+
+// Parse a `sniffprobe` line: "<rssi> Ch: <ch> Client: <mac> Requesting: <ssid>".
+// Stores the client MAC in out->bssid and the requested SSID in out->ssid
+// (empty request -> hidden=true, ssid=""). Tolerates a "> " prompt.
+bool mm_probe_parse_line(const char* line, MMScanAp* out);

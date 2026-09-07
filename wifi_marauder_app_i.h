@@ -28,7 +28,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (34)
+#define NUM_MENU_ITEMS (35)
 
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
@@ -188,6 +188,12 @@ struct WifiMarauderApp {
     int beacon_hits[MM_AP_MAX]; // beacon frames counted per AP
     int beacon_ap_count;
     int beacon_ticks; // rebuild throttle
+
+    // Marauder's Mate: probe-request monitor (sniffprobe)
+    MMScanAp probe_clients[MM_AP_MAX]; // deduped by client MAC (in .bssid), .ssid = requested
+    int probe_hits[MM_AP_MAX]; // probe frames counted per client
+    int probe_client_count;
+    int probe_ticks;
 };
 
 // Supported commands:

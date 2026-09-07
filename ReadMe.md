@@ -46,6 +46,9 @@ Not yet tested on hardware -- feedback from a real board is welcome.
 - [x] Beacon Monitor: sniffbeacon parsed into a live list deduped by BSSID,
       counting beacon frames per AP, sorted noisiest-first (a beacon-spam
       detector)
+- [x] Probe Monitor: sniffprobe parsed into a live list of client devices
+      (deduped by MAC), counting probes and showing the SSIDs they seek
+- [ ] Deauth Monitor: deferred (needs a real-deauth capture to verify format)
 - [ ] Keep raw-console view available as a fallback / "advanced" mode
 
 ## Build

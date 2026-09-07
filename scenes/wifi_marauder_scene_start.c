@@ -28,6 +28,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"View Log from", {"start", "end"}, 2, {"", ""}, NO_ARGS, FOCUS_CONSOLE_TOGGLE, NO_TIP},
     {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
     {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
+    {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
     {"Scan",
      {"all", "ping", "arp"},
      3,
@@ -307,6 +308,12 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
+    // Marauder's Mate: probe-request monitor entry
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "probemon") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartProbeMon);
+        return;
+    }
+
     if(app->selected_tx_string &&
        strncmp("sniffpmkid", app->selected_tx_string, strlen("sniffpmkid")) == 0) {
         // sniffpmkid submenu
@@ -421,6 +428,10 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneBeaconMon);
+        } else if(event.event == WifiMarauderEventStartProbeMon) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneProbeMon);
         }
         consumed = true;
     } else if(event.type == SceneManagerEventTypeTick) {

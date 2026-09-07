@@ -71,6 +71,7 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->host_count = 0;
     app->host_state = MMHostReady; // detail scene forces a fresh scan
     app->beacon_ap_count = 0;
+    app->probe_client_count = 0;
 
     // Marauder's Mate: live scanall state
     app->scan_stream = furi_stream_buffer_alloc(4096, 1);

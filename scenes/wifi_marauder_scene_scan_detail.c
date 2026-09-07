@@ -70,7 +70,7 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     submenu_add_item(submenu, line, MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
     submenu_add_item(submenu, ap->bssid, MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
 
-    char sta_label[24];
+    char sta_label[48];
     snprintf(sta_label, sizeof(sta_label), "Stations (%d)", clients);
     submenu_add_item(submenu, sta_label, MM_D_STATIONS, wifi_marauder_scan_detail_item_cb, app);
 

@@ -12,9 +12,6 @@ App(
     fap_icon_assets="assets",
     # Default recursive glob, minus host-only unit tests (matched by basename).
     sources=["*.c*", "!*_test.c"],
-    # Truncation of a fixed-size display label just clips harmlessly; don't let
-    # the stricter dev-SDK gcc fail the build over it.
-    cflags=["-Wno-format-truncation"],
     fap_author="Steve (fork of 0xchocolate/flipperzero-wifi-marauder)",
     fap_description="Marauder's Mate: a friendlier front-end for ESP32 Marauder that parses output into navigable menus instead of raw serial dumps.",
 )

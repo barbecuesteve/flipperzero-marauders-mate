@@ -22,7 +22,7 @@ void wifi_marauder_scene_sta_list_on_enter(void* context) {
     submenu_reset(submenu);
 
     MMScanAp* ap = &app->scan_aps[app->scan_selected];
-    char header[32];
+    char header[48];
     snprintf(header, sizeof(header), "%s clients", ap->hidden ? "[Hidden]" : ap->ssid);
     submenu_set_header(submenu, header);
 

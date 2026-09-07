@@ -37,7 +37,7 @@ static void wifi_marauder_host_scan_item_cb(void* context, uint32_t index) {
 static void wifi_marauder_host_scan_build(WifiMarauderApp* app) {
     Submenu* submenu = app->submenu;
     submenu_reset(submenu);
-    char header[24];
+    char header[48];
     if(app->host_count == 0) {
         submenu_set_header(submenu, "No hosts found");
     } else {
@@ -116,7 +116,7 @@ bool wifi_marauder_scene_host_scan_on_event(void* context, SceneManagerEvent eve
         if(app->host_state == MMHostScanning) {
             if(app->host_ticks % 10 == 0) {
                 int left = (MM_PINGSCAN_TICKS - app->host_ticks) / 10;
-                char header[32];
+                char header[48];
                 snprintf(header, sizeof(header), "Scanning subnet ~%ds", left);
                 submenu_set_header(app->submenu, header);
             }

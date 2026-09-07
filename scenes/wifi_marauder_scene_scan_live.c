@@ -68,7 +68,7 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
     uint32_t sel = submenu_get_selected_item(app->submenu);
     submenu_reset(app->submenu);
 
-    char header[24];
+    char header[48];
     snprintf(header, sizeof(header), "Live APs: %d", app->scan_ap_count);
     submenu_set_header(app->submenu, header);
 

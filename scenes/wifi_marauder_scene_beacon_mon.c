@@ -24,7 +24,7 @@ static void wifi_marauder_beacon_mon_rebuild(WifiMarauderApp* app) {
     uint32_t sel = submenu_get_selected_item(app->submenu);
     submenu_reset(app->submenu);
 
-    char header[24];
+    char header[48];
     snprintf(header, sizeof(header), "Beacons: %d APs", app->beacon_ap_count);
     submenu_set_header(app->submenu, header);
 

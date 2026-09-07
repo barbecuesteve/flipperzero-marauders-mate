@@ -1,42 +1,39 @@
-name: "FAP Build"
+name: CI
+
 on:
   push:
-    branches:
-      - feature_wifi_marauder_app
+    branches: [main]
   pull_request:
-  schedule:
-    # do a build every day
-    - cron: "1 1 * * *"
+  workflow_dispatch:
+
 jobs:
-  ufbt-build-action:
+  host-tests:
+    name: Host parser tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run pure-logic tests (no hardware)
+        run: sh tools/run_tests.sh
+
+  fap-build:
+    name: Build FAP (${{ matrix.name }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - name: dev channel
-            sdk-channel: dev
-          - name: release channel
+          - name: official-release
             sdk-channel: release
-          - name: Unleashed dev
-            sdk-index-url: https://up.unleashedflip.com/directory.json
+          - name: official-dev
             sdk-channel: dev
-          - name: Unleashed release
-            sdk-index-url: https://up.unleashedflip.com/directory.json
-            sdk-channel: release
-    name: 'ufbt: Build for ${{ matrix.name }}'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-        with:
-          submodules: recursive
+      - uses: actions/checkout@v4
       - name: Build with ufbt
         uses: flipperdevices/flipperzero-ufbt-action@v0.1.2
-        id: build-app
         with:
           sdk-channel: ${{ matrix.sdk-channel }}
-          sdk-index-url: ${{ matrix.sdk-index-url }}
-      - name: Upload app artifacts
+      - name: Upload .fap
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.repository.name }}-${{ steps.build-app.outputs.suffix }}
-          path: ${{ steps.build-app.outputs.fap-artifacts }}
+          name: marauders_mate-${{ matrix.name }}
+          path: dist/*.fap

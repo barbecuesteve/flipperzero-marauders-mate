@@ -40,7 +40,7 @@ static void wifi_marauder_beacon_mon_rebuild(WifiMarauderApp* app) {
         s_order[j + 1] = v;
     }
 
-    char label[64];
+    char label[96];
     for(int k = 0; k < app->beacon_ap_count; k++) {
         int i = s_order[k];
         MMScanAp* a = &app->beacon_aps[i];

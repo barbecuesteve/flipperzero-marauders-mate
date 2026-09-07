@@ -25,9 +25,8 @@ static void wifi_marauder_fox_hunt_draw(WifiMarauderApp* app) {
     Widget* widget = app->widget;
     widget_reset(widget);
 
-    MMScanAp* ap = &app->scan_aps[app->scan_selected];
-    char title[32];
-    snprintf(title, sizeof(title), "Fox: %s", ap->hidden ? "[Hidden]" : ap->ssid);
+    char title[40];
+    snprintf(title, sizeof(title), "Fox: %s", app->fox_title);
     widget_add_string_element(widget, 2, 2, AlignLeft, AlignTop, FontSecondary, title);
 
     if(!app->fox_have) {
@@ -69,9 +68,12 @@ void wifi_marauder_scene_fox_hunt_on_enter(void* context) {
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_fox_hunt_rx_cb);
     wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
 
-    int ap_idx = app->scan_resolved_index[app->scan_selected];
-    char cmd[24];
-    snprintf(cmd, sizeof(cmd), "foxhunt -w %d\n", ap_idx);
+    char cmd[32];
+    if(app->fox_is_station) {
+        snprintf(cmd, sizeof(cmd), "foxhunt -s %d %d\n", app->fox_ap_arg, app->fox_sta_arg);
+    } else {
+        snprintf(cmd, sizeof(cmd), "foxhunt -w %d\n", app->fox_ap_arg);
+    }
     wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
 }
 

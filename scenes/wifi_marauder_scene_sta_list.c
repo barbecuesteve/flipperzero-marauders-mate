@@ -8,14 +8,12 @@
 // before list -c ran) are shown but not actionable.
 #include "../wifi_marauder_app_i.h"
 
-static const char* const MM_CMD_DEAUTH_C = "attack -t deauth -c";
 
 static void wifi_marauder_sta_list_item_cb(void* context, uint32_t index) {
     WifiMarauderApp* app = context;
     if((int)index >= app->scan_station_count) return; // "no clients" placeholder
     app->sta_selected = (int)index;
-    if(app->scan_stations[index].sel_index < 0) return; // not targetable yet
-    view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaDeauth);
+    view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaSelected);
 }
 
 void wifi_marauder_scene_sta_list_on_enter(void* context) {
@@ -53,25 +51,8 @@ bool wifi_marauder_scene_sta_list_on_event(void* context, SceneManagerEvent even
     WifiMarauderApp* app = context;
     bool consumed = false;
 
-    if(event.type == SceneManagerEventTypeCustom && event.event == WifiMarauderEventStaDeauth) {
-        MMStation* st = &app->scan_stations[app->sta_selected];
-        int ap_resolved = app->scan_resolved_index[st->ap_index];
-        if(st->sel_index < 0 || ap_resolved < 0) return true; // can't target cleanly
-
-        // Targeted client deauth needs both the AP and the station selected.
-        snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "select -a %d\n", ap_resolved);
-        wifi_marauder_uart_tx(app->uart, (uint8_t*)app->ap_cmd_buf, strlen(app->ap_cmd_buf));
-        snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "select -c %d\n", st->sel_index);
-        wifi_marauder_uart_tx(app->uart, (uint8_t*)app->ap_cmd_buf, strlen(app->ap_cmd_buf));
-
-        app->selected_tx_string = MM_CMD_DEAUTH_C;
-        app->is_command = true;
-        app->is_custom_tx_string = false;
-        app->focus_console_start = false;
-        app->show_stopscan_tip = true;
-        app->script = NULL;
-
-        scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+    if(event.type == SceneManagerEventTypeCustom && event.event == WifiMarauderEventStaSelected) {
+        scene_manager_next_scene(app->scene_manager, WifiMarauderSceneStaDetail);
         consumed = true;
     }
 

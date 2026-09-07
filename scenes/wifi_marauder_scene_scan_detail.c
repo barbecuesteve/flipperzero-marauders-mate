@@ -103,6 +103,12 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneStaList);
             consumed = true;
         } else if(event.event == WifiMarauderEventScanFoxHunt) {
+            MMScanAp* ap = &app->scan_aps[app->scan_selected];
+            app->fox_is_station = false;
+            app->fox_ap_arg = app->scan_resolved_index[app->scan_selected];
+            strncpy(
+                app->fox_title, ap->hidden ? "[Hidden]" : ap->ssid, sizeof(app->fox_title) - 1);
+            app->fox_title[sizeof(app->fox_title) - 1] = '\0';
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneFoxHunt);
             consumed = true;
         } else if(event.event == WifiMarauderEventScanJoin) {

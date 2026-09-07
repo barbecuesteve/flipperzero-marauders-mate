@@ -86,7 +86,7 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
         }
     }
 
-    char label[64];
+    char label[96];
     for(int k = 0; k < app->scan_ap_count; k++) {
         int i = s_order[k]; // store index for this display row
         MMScanAp* a = &app->scan_aps[i];

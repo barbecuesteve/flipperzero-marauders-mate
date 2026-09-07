@@ -175,6 +175,10 @@ struct WifiMarauderApp {
     int fox_best; // strongest (least negative) smoothed RSSI seen
     bool fox_have; // whether any reading has arrived yet
     int fox_ticks; // redraw throttle counter
+    bool fox_is_station; // hunt a station (foxhunt -s) vs an AP (foxhunt -w)
+    int fox_ap_arg; // AP select index for the foxhunt command
+    int fox_sta_arg; // station select index (station hunt only)
+    char fox_title[MM_AP_NAME_MAX]; // label shown on the meter
 
     // Marauder's Mate: L3 host discovery
     char hosts[MM_HOST_MAX][16]; // discovered host IPs (dotted quad)

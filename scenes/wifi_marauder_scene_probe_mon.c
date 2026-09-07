@@ -39,7 +39,7 @@ static void wifi_marauder_probe_mon_rebuild(WifiMarauderApp* app) {
         s_order[j + 1] = v;
     }
 
-    char label[64];
+    char label[96];
     for(int k = 0; k < app->probe_client_count; k++) {
         int i = s_order[k];
         MMScanAp* c = &app->probe_clients[i];

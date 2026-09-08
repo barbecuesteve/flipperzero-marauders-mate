@@ -24,6 +24,7 @@ typedef enum {
     WifiMarauderEventStartDeviceInfo,
     WifiMarauderEventOpenCategory,
     WifiMarauderEventOpenSpoof,
+    WifiMarauderEventHostPortScan,
     WifiMarauderEventStaSelected,
     WifiMarauderEventStaDeauth,
     WifiMarauderEventStaFoxHunt,

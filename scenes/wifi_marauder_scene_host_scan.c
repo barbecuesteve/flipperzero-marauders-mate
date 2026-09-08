@@ -8,6 +8,8 @@
 
 #define MM_ITEM_RESCAN (0xFFFFFFFFu)
 
+static char s_portscan_cmd[24]; // "portscan -t <n> -a"
+
 static void wifi_marauder_host_scan_rx_cb(uint8_t* buf, size_t len, void* context) {
     WifiMarauderApp* app = context;
     furi_stream_buffer_send(app->scan_stream, buf, len, 0);
@@ -25,7 +27,11 @@ static void wifi_marauder_host_scan_item_cb(void* context, uint32_t index) {
         wifi_marauder_host_scan_start(app);
         return;
     }
-    app->host_selected = (int)index; // view-only for now
+    // Selecting a host full-port-scans it. The row value is the host's display
+    // index, which equals the ESP's ipList index (arpscan clears+repopulates
+    // ipList in stream order each scan), so `portscan -t <index> -a` hits it.
+    app->host_selected = (int)index;
+    view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventHostPortScan);
 }
 
 static void wifi_marauder_host_scan_build(WifiMarauderApp* app) {
@@ -121,7 +127,21 @@ bool wifi_marauder_scene_host_scan_on_event(void* context, SceneManagerEvent eve
     WifiMarauderApp* app = context;
     bool consumed = false;
 
-    if(event.type == SceneManagerEventTypeTick) {
+    if(event.type == SceneManagerEventTypeCustom) {
+        if(event.event == WifiMarauderEventHostPortScan) {
+            // Full port scan of the selected host by its ipList index.
+            snprintf(
+                s_portscan_cmd, sizeof(s_portscan_cmd), "portscan -t %d -a", app->host_selected);
+            app->selected_tx_string = s_portscan_cmd;
+            app->is_command = true;
+            app->is_custom_tx_string = false;
+            app->focus_console_start = false;
+            app->show_stopscan_tip = true;
+            app->script = NULL;
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+            consumed = true;
+        }
+    } else if(event.type == SceneManagerEventTypeTick) {
         if(app->host_state == MMHostScanning) {
             wifi_marauder_host_scan_drain(app);
             // Rebuild only when the host set grew (throttled ~2/s) to keep the

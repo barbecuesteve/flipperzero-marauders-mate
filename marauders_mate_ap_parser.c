@@ -419,6 +419,79 @@ bool mm_hostscan_parse_ip(const char* line, char* ip_out) {
     return true;
 }
 
+bool mm_portscan_parse_open(const char* line, int* port) {
+    if(!line || !port) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t' || *p == '>') p++;
+    int a, b, c, d, pt, n = 0;
+    if(sscanf(p, "%d.%d.%d.%d: %d%n", &a, &b, &c, &d, &pt, &n) != 5) return false;
+    // The whole token must be consumed (rejects trailing junk); octets/port sane.
+    if(p[n] != '\0' && p[n] != '\r' && p[n] != '\n' && p[n] != ' ') return false;
+    if(a < 0 || a > 255 || b < 0 || b > 255 || c < 0 || c > 255 || d < 0 || d > 255) return false;
+    if(pt < 1 || pt > 65535) return false;
+    *port = pt;
+    return true;
+}
+
+const char* mm_port_service_name(int port) {
+    switch(port) {
+    case 21:
+        return "FTP";
+    case 22:
+        return "SSH";
+    case 23:
+        return "Telnet";
+    case 25:
+        return "SMTP";
+    case 53:
+        return "DNS";
+    case 80:
+        return "HTTP";
+    case 110:
+        return "POP3";
+    case 111:
+        return "RPC";
+    case 139:
+        return "NetBIOS";
+    case 143:
+        return "IMAP";
+    case 443:
+        return "HTTPS";
+    case 445:
+        return "SMB";
+    case 548:
+        return "AFP";
+    case 631:
+        return "IPP";
+    case 1883:
+        return "MQTT";
+    case 2049:
+        return "NFS";
+    case 3306:
+        return "MySQL";
+    case 3389:
+        return "RDP";
+    case 5000:
+        return "DSM/UPnP";
+    case 5001:
+        return "DSM-TLS";
+    case 5432:
+        return "Postgres";
+    case 5900:
+        return "VNC";
+    case 6379:
+        return "Redis";
+    case 8080:
+        return "HTTP-alt";
+    case 8443:
+        return "HTTPS-alt";
+    case 32400:
+        return "Plex";
+    default:
+        return "";
+    }
+}
+
 bool mm_beacon_parse_line(const char* line, MMScanAp* out) {
     if(!line || !out) return false;
     const char* p = line;

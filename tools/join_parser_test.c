@@ -91,6 +91,18 @@ int main(void) {
     CHECK(!mm_hostscan_parse_ip("[0] 192.168.0.101", pip),
           "list -i row (has [n]) is not a bare pingscan line");
 
+    // --- portscan open-port lines -------------------------------------------
+    int prt;
+    CHECK(mm_portscan_parse_open("192.168.0.101: 22", &prt) && prt == 22, "open port (got %d)", prt);
+    CHECK(mm_portscan_parse_open("> 192.168.0.101: 443", &prt) && prt == 443, "with prompt");
+    CHECK(!mm_portscan_parse_open("Checking IP: 192.168.0.101 Port: 1000", &prt),
+          "progress line is not an open port");
+    CHECK(!mm_portscan_parse_open("IP address: 192.168.0.139", &prt), "header is not an open port");
+    CHECK(!mm_portscan_parse_open("192.168.0.101: 99999", &prt), "out-of-range port rejected");
+    CHECK(strcmp(mm_port_service_name(22), "SSH") == 0, "22 -> SSH");
+    CHECK(strcmp(mm_port_service_name(443), "HTTPS") == 0, "443 -> HTTPS");
+    CHECK(mm_port_service_name(12345)[0] == '\0', "unknown port -> empty");
+
     // --- Bluetooth support probe --------------------------------------------
     CHECK(mm_bt_line_unsupported("Bluetooth not supported"), "S2 no-BT reply detected");
     CHECK(mm_bt_line_unsupported("> Bluetooth not supported"), "with prompt prefix");

@@ -231,6 +231,13 @@ struct WifiMarauderApp {
     // Marauder's Mate: L3 host discovery
     char hosts[MM_HOST_MAX][16]; // discovered host IPs (dotted quad)
     int host_count;
+    // Port Scan results (a full scan of one selected host)
+    char portscan_ip[16]; // the host being port-scanned (for the title)
+    uint16_t open_ports[64]; // open ports found, in discovery order
+    int open_port_count;
+    int open_ports_built; // open_port_count at last rebuild (throttle)
+    int port_progress; // latest "Checking ... Port: N" value (progress)
+    bool portscan_done;
     int host_built; // host_count at the last submenu rebuild (rebuild only when it grows)
     bool host_dirty; // a new host arrived; submenu needs a (throttled) rebuild
     int host_selected;

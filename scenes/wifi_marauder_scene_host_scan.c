@@ -8,8 +8,6 @@
 
 #define MM_ITEM_RESCAN (0xFFFFFFFFu)
 
-static char s_portscan_cmd[24]; // "portscan -t <n> -a"
-
 static void wifi_marauder_host_scan_rx_cb(uint8_t* buf, size_t len, void* context) {
     WifiMarauderApp* app = context;
     furi_stream_buffer_send(app->scan_stream, buf, len, 0);
@@ -129,16 +127,14 @@ bool wifi_marauder_scene_host_scan_on_event(void* context, SceneManagerEvent eve
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == WifiMarauderEventHostPortScan) {
-            // Full port scan of the selected host by its ipList index.
-            snprintf(
-                s_portscan_cmd, sizeof(s_portscan_cmd), "portscan -t %d -a", app->host_selected);
-            app->selected_tx_string = s_portscan_cmd;
-            app->is_command = true;
-            app->is_custom_tx_string = false;
-            app->focus_console_start = false;
-            app->show_stopscan_tip = true;
-            app->script = NULL;
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+            // Full port scan of the selected host -> parsed results scene.
+            if(app->host_selected >= 0 && app->host_selected < app->host_count) {
+                strncpy(
+                    app->portscan_ip, app->hosts[app->host_selected],
+                    sizeof(app->portscan_ip) - 1);
+                app->portscan_ip[sizeof(app->portscan_ip) - 1] = '\0';
+                scene_manager_next_scene(app->scene_manager, WifiMarauderScenePortResults);
+            }
             consumed = true;
         }
     } else if(event.type == SceneManagerEventTypeTick) {

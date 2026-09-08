@@ -126,6 +126,15 @@ bool mm_listi_parse_ip(const char* line, char* ip_out);
 // header). Writes the IP into ip_out (>= 16 bytes).
 bool mm_hostscan_parse_ip(const char* line, char* ip_out);
 
+// Parse a `portscan` open-port line "<IPv4>: <port>" (e.g. "192.168.0.101: 22").
+// Sets *port. Returns false for progress lines ("Checking IP: ... Port: N") and
+// the IP/Gateway/MAC header. Tolerates a leading "> " prompt.
+bool mm_portscan_parse_open(const char* line, int* port);
+
+// Well-known service name for a port, or "" if unknown (for display next to the
+// port number). Not exhaustive -- the common ones plus a few NAS/IoT services.
+const char* mm_port_service_name(int port);
+
 // Parse a `sniffbeacon` line: "<rssi> Ch: <ch> <bssid> ESSID: <name>". Like the
 // scanall AP line but with NO trailing metadata tokens -- the ESSID runs to end
 // of line. Fills *out (hidden if the ESSID is empty). Tolerates a "> " prompt.

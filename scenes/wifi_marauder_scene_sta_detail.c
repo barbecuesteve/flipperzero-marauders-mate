@@ -31,7 +31,18 @@ void wifi_marauder_scene_sta_detail_on_enter(void* context) {
     submenu_reset(submenu);
 
     MMStation* st = &app->scan_stations[app->sta_selected];
-    bool targetable = st->sel_index >= 0 && app->scan_resolved_index[st->ap_index] >= 0;
+    int ap_resolved = app->scan_resolved_index[st->ap_index];
+    bool targetable = st->sel_index >= 0 && ap_resolved >= 0;
+
+    if(!targetable) {
+        FURI_LOG_I(
+            "MM-TGT",
+            "sta not targetable: mac=%s ap_index=%d ap_resolved=%d sel_index=%d",
+            st->mac,
+            st->ap_index,
+            ap_resolved,
+            st->sel_index);
+    }
 
     submenu_set_header(submenu, st->mac);
     if(targetable) {

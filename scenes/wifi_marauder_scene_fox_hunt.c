@@ -10,6 +10,16 @@
 #define MM_RSSI_FLOOR (-90)
 #define MM_RSSI_CEIL (-20)
 
+#define MM_FOX_TAG "MM-FOX"
+// Debug: how many raw ESP lines to echo to the system log after launch. Enough
+// to capture the ESP's initial reply (an error appears immediately; a working
+// stream shows RSSI lines immediately) without flooding `log`.
+#define MM_FOX_DBG_MAX 40
+static int mm_fox_dbg_lines;
+// A reading older than this (ticks at 100ms) is stale: the station has gone
+// quiet and the last number no longer reflects distance. ~1.5s.
+#define MM_FOX_STALE_TICKS 15
+
 static int mm_rssi_pct(int rssi) {
     if(rssi < MM_RSSI_FLOOR) rssi = MM_RSSI_FLOOR;
     if(rssi > MM_RSSI_CEIL) rssi = MM_RSSI_CEIL;
@@ -30,8 +40,10 @@ static void wifi_marauder_fox_hunt_draw(WifiMarauderApp* app) {
     widget_add_string_element(widget, 2, 2, AlignLeft, AlignTop, FontSecondary, title);
 
     if(!app->fox_have) {
-        widget_add_string_element(
-            widget, 64, 34, AlignCenter, AlignCenter, FontPrimary, "Acquiring...");
+        // A station only reports when it transmits, so "quiet" is normal, not a
+        // hang; say so. An AP beacons continuously and acquires immediately.
+        const char* msg = app->fox_is_station ? "Waiting for TX..." : "Acquiring...";
+        widget_add_string_element(widget, 64, 34, AlignCenter, AlignCenter, FontSecondary, msg);
         return;
     }
 
@@ -39,6 +51,17 @@ static void wifi_marauder_fox_hunt_draw(WifiMarauderApp* app) {
     snprintf(num, sizeof(num), "%d", app->fox_smoothed);
     widget_add_string_element(widget, 60, 30, AlignRight, AlignCenter, FontBigNumbers, num);
     widget_add_string_element(widget, 64, 24, AlignLeft, AlignTop, FontSecondary, "dBm");
+
+    // If the reading has aged out, the target went quiet: the last number no
+    // longer tracks distance, so flag it stale rather than let it lie.
+    int age = app->fox_ticks - app->fox_last_rx_tick;
+    if(age > MM_FOX_STALE_TICKS) {
+        int secs = age / 10;
+        if(secs > 99) secs = 99; // past this the exact age adds nothing
+        char st[24];
+        snprintf(st, sizeof(st), "stale %ds", secs);
+        widget_add_string_element(widget, 64, 36, AlignLeft, AlignTop, FontSecondary, st);
+    }
 
     // Strength bar: outline + fill proportional to signal strength.
     int pct = mm_rssi_pct(app->fox_smoothed);
@@ -59,6 +82,7 @@ void wifi_marauder_scene_fox_hunt_on_enter(void* context) {
     app->fox_smoothed = 0;
     app->fox_best = MM_RSSI_FLOOR;
     app->fox_ticks = 0;
+    app->fox_last_rx_tick = 0;
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
 
@@ -68,11 +92,15 @@ void wifi_marauder_scene_fox_hunt_on_enter(void* context) {
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_fox_hunt_rx_cb);
     wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
 
+    mm_fox_dbg_lines = 0;
     char cmd[32];
     if(app->fox_is_station) {
         snprintf(cmd, sizeof(cmd), "foxhunt -s %d %d\n", app->fox_ap_arg, app->fox_sta_arg);
+        FURI_LOG_I(
+            MM_FOX_TAG, "launch station: ap_arg=%d sta_arg=%d", app->fox_ap_arg, app->fox_sta_arg);
     } else {
         snprintf(cmd, sizeof(cmd), "foxhunt -w %d\n", app->fox_ap_arg);
+        FURI_LOG_I(MM_FOX_TAG, "launch ap: ap_arg=%d", app->fox_ap_arg);
     }
     wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
 }
@@ -100,8 +128,17 @@ bool wifi_marauder_scene_fox_hunt_on_event(void* context, SceneManagerEvent even
             memcpy(line, cstr, cpy);
             line[cpy] = '\0';
             int r;
-            if(mm_foxhunt_parse_rssi(line, &r)) {
+            bool parsed = mm_foxhunt_parse_rssi(line, &r);
+            if(mm_fox_dbg_lines < MM_FOX_DBG_MAX && line[0] != '\0') {
+                // Debug level: silent unless the log level is raised to Debug,
+                // and kept out of the Info stream so it doesn't confound the
+                // ViewPort-lockup measurements (mm-1d9) or spam `log`.
+                FURI_LOG_D(MM_FOX_TAG, "rx[%s]: %s", parsed ? "rssi" : "----", line);
+                mm_fox_dbg_lines++;
+            }
+            if(parsed) {
                 app->fox_rssi = r;
+                app->fox_last_rx_tick = app->fox_ticks;
                 if(!app->fox_have) {
                     app->fox_smoothed = r;
                     app->fox_have = true;

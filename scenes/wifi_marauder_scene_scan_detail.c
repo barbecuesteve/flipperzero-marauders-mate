@@ -63,6 +63,17 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     int clients = app->scan_clients[app->scan_selected];
     bool targetable = app->scan_resolved_index[app->scan_selected] >= 0;
 
+    if(!targetable) {
+        FURI_LOG_I(
+            "MM-TGT",
+            "ap not targetable: scan_idx=%d bssid=%s ssid=%s hidden=%d resolved=%d",
+            app->scan_selected,
+            ap->bssid,
+            ap->hidden ? "(hidden)" : ap->ssid,
+            ap->hidden,
+            app->scan_resolved_index[app->scan_selected]);
+    }
+
     submenu_set_header(submenu, ap->hidden ? "[Hidden AP]" : ap->ssid);
 
     char line[40];

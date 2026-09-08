@@ -177,6 +177,7 @@ struct WifiMarauderApp {
     int fox_best; // strongest (least negative) smoothed RSSI seen
     bool fox_have; // whether any reading has arrived yet
     int fox_ticks; // redraw throttle counter
+    int fox_last_rx_tick; // fox_ticks value at the last RSSI sample (staleness)
     bool fox_is_station; // hunt a station (foxhunt -s) vs an AP (foxhunt -w)
     int fox_ap_arg; // AP select index for the foxhunt command
     int fox_sta_arg; // station select index (station hunt only)

@@ -64,6 +64,21 @@ ufbt            # build -> dist/marauders_mate.fap
 ufbt launch     # build, upload, and run on a connected Flipper
 ```
 
+## Auto-join (optional)
+
+Tapping **Join** on a network normally prompts you to type the password on the
+Flipper. If you'd rather one-tap join your own networks, drop a file on the SD
+card at `/ext/apps_data/marauder/networks.txt` listing SSID/password pairs; when
+the tapped AP's SSID matches, the app joins without prompting. See
+[`networks.txt.example`](networks.txt.example) for the format.
+
+> ⚠️ **This file is plaintext on an unencrypted, removable SD card.** Anyone who
+> gets the card can read every password in it. Put only your own networks here,
+> and treat a lost Flipper as lost passwords. The real file is gitignored; only
+> the placeholder example is tracked. (Note: Marauder echoes the password in its
+> own join output, so a saved console log will also contain it — the same as a
+> manually typed join.)
+
 ## License
 
 GPLv3, inherited from upstream. See [LICENSE](LICENSE). Original work by

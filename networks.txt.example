@@ -1,0 +1,20 @@
+Filetype: Marauder Networks
+Version: 1
+# Optional WiFi passwords for one-tap Join in Marauder's Mate.
+#
+# Copy this file to your Flipper SD card at:
+#   /ext/apps_data/marauder/networks.txt
+# and replace the placeholders with your own networks.
+#
+# SECURITY: this file is PLAINTEXT on an unencrypted, removable SD card.
+# Anyone who gets the card can read every password. Only put your OWN
+# networks here, and treat losing the Flipper as losing these passwords.
+# This example ships with placeholders only; never commit the real file.
+#
+# Format: one SSID line immediately followed by its Pass line. Match is by
+# exact SSID (case-sensitive). Hidden networks (no SSID) can't be matched
+# and will fall back to typing the password on the Flipper.
+SSID: ExampleHomeNetwork
+Pass: replace-with-your-password
+SSID: ExampleGuestNetwork
+Pass: replace-with-your-password

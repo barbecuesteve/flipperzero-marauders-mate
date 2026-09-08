@@ -3,6 +3,64 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <expansion/expansion.h>
+#include <flipper_format/flipper_format.h>
+
+#define MM_NET_MAX 48 // max networks kept in the auto-join bank
+
+bool mm_save_network_password(WifiMarauderApp* app, const char* ssid, const char* pass) {
+    if(!ssid || ssid[0] == '\0' || !pass || pass[0] == '\0') return false;
+
+    // Static (BSS), not stack: ~4.6KB would overflow the GUI thread stack.
+    // Safe because this only runs on the single-threaded GUI event loop.
+    static char names[MM_NET_MAX][MM_AP_NAME_MAX];
+    static char passes[MM_NET_MAX][64];
+    int n = 0;
+    bool replaced = false;
+
+    // Load the existing bank, updating the target SSID's password in place.
+    FlipperFormat* in = flipper_format_file_alloc(app->storage);
+    if(flipper_format_file_open_existing(in, MM_NETWORKS_FILEPATH)) {
+        FuriString* k = furi_string_alloc();
+        FuriString* v = furi_string_alloc();
+        while(n < MM_NET_MAX && flipper_format_read_string(in, "SSID", k)) {
+            if(!flipper_format_read_string(in, "Pass", v)) break;
+            strncpy(names[n], furi_string_get_cstr(k), MM_AP_NAME_MAX - 1);
+            names[n][MM_AP_NAME_MAX - 1] = '\0';
+            const char* src = (strcmp(names[n], ssid) == 0) ? (replaced = true, pass) :
+                                                              furi_string_get_cstr(v);
+            strncpy(passes[n], src, 63);
+            passes[n][63] = '\0';
+            n++;
+        }
+        furi_string_free(k);
+        furi_string_free(v);
+    }
+    flipper_format_free(in);
+
+    // New network: append.
+    if(!replaced && n < MM_NET_MAX) {
+        strncpy(names[n], ssid, MM_AP_NAME_MAX - 1);
+        names[n][MM_AP_NAME_MAX - 1] = '\0';
+        strncpy(passes[n], pass, 63);
+        passes[n][63] = '\0';
+        n++;
+    }
+
+    // Rewrite the whole file (small bank; simplest correct upsert).
+    FlipperFormat* out = flipper_format_file_alloc(app->storage);
+    bool ok = false;
+    if(flipper_format_file_open_always(out, MM_NETWORKS_FILEPATH)) {
+        if(flipper_format_write_header_cstr(out, "Marauder Networks", 1)) {
+            ok = true;
+            for(int i = 0; i < n && ok; i++) {
+                ok = flipper_format_write_string_cstr(out, "SSID", names[i]) &&
+                     flipper_format_write_string_cstr(out, "Pass", passes[i]);
+            }
+        }
+    }
+    flipper_format_free(out);
+    return ok;
+}
 
 static bool wifi_marauder_app_custom_event_callback(void* context, uint32_t event) {
     furi_assert(context);
@@ -87,6 +145,16 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->scan_dirty = false;
     app->scan_resolve_to_detail = false;
     app->scan_resume_pending = false;
+    app->join_ssid[0] = '\0';
+    app->join_target[0] = '\0';
+    app->join_status[0] = '\0';
+    app->join_last[0] = '\0';
+    app->join_ip[0] = '\0';
+    app->join_done = false;
+    app->join_bssid[0] = '\0';
+    app->wifi_connected = false;
+    app->connected_bssid[0] = '\0';
+    app->connected_ssid[0] = '\0';
 
     app->text_input = wifi_text_input_alloc();
     view_dispatcher_add_view(

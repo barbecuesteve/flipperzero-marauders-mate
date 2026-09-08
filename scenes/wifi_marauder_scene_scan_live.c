@@ -72,11 +72,11 @@ static void wifi_marauder_scan_live_select_store(WifiMarauderApp* app, int store
 
 static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
     uint32_t t0 = furi_get_tick();
-    // Preserve the cursor by STORE index, not row: with continuous scanning the
-    // sorted order shifts as APs arrive, so a fixed row would drift to a
-    // different AP. s_order still holds the PREVIOUS build's order here.
-    uint32_t sel_row = submenu_get_selected_item(app->submenu);
-    int sel_store = (sel_row < (uint32_t)app->scan_ap_count) ? s_order[sel_row] : -1;
+    // Preserve the cursor across the re-sort. submenu get/set operate on the
+    // item VALUE (what we pass to add_item), not the row position -- and our
+    // value IS the store index, which is stable as APs arrive and rows shuffle.
+    // So capturing and restoring the value keeps the cursor on the same AP.
+    uint32_t sel_value = submenu_get_selected_item(app->submenu);
     submenu_reset(app->submenu);
 
     char header[48];
@@ -116,10 +116,9 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
     submenu_add_item(
         app->submenu, "> Rescan", MM_ITEM_RESCAN, wifi_marauder_scan_live_item_cb, app);
 
-    // Restore the cursor to the row now displaying that store index.
-    if(sel_store >= 0) {
-        wifi_marauder_scan_live_select_store(app, sel_store);
-    }
+    // Restore the cursor to the same AP (by value); harmlessly a no-op if that
+    // value is gone. The "> Rescan" row's value is preserved too.
+    submenu_set_selected_item(app->submenu, sel_value);
 
     uint32_t dt = furi_get_tick() - t0;
     if(dt >= MM_PERF_MS)
@@ -128,14 +127,10 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
             (unsigned long)dt);
 }
 
-// Move the cursor to the row displaying store index `store_idx`.
+// Move the cursor to the AP with store index `store_idx`. The submenu selects
+// by item VALUE, and each row's value is its store index, so this is direct.
 static void wifi_marauder_scan_live_select_store(WifiMarauderApp* app, int store_idx) {
-    for(int k = 0; k < app->scan_ap_count; k++) {
-        if(s_order[k] == store_idx) {
-            submenu_set_selected_item(app->submenu, (uint32_t)k);
-            return;
-        }
-    }
+    if(store_idx >= 0) submenu_set_selected_item(app->submenu, (uint32_t)store_idx);
 }
 
 // Parse one scanall line into the store. Returns true if the display changed.

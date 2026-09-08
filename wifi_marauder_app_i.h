@@ -77,6 +77,10 @@ typedef enum {
 #define MARAUDER_APP_SCRIPT_PATH(file_name) MARAUDER_APP_FOLDER_SCRIPTS "/" file_name ".json"
 #define SAVE_PCAP_SETTING_FILEPATH MARAUDER_APP_FOLDER "/save_pcaps_here.setting"
 #define SAVE_LOGS_SETTING_FILEPATH MARAUDER_APP_FOLDER "/save_logs_here.setting"
+// Optional user-supplied WiFi passwords for auto-join. Plaintext on the SD
+// card (unencrypted, removable) -- user's own networks, user's own risk. Never
+// committed; a networks.txt.example ships with placeholders only.
+#define MM_NETWORKS_FILEPATH MARAUDER_APP_FOLDER "/networks.txt"
 
 typedef enum WifiMarauderUserInputType {
     WifiMarauderUserInputTypeString,
@@ -153,6 +157,23 @@ struct WifiMarauderApp {
     FuriString* ap_scan_buffer; // list -a / list -c text accumulator
     int ap_action; // MMApAction chosen on the detail screen
     char ap_cmd_buf[32]; // scratch for "select -a/-c <n>"
+    char join_cmd[96]; // scratch for "join -a <n> -p <password>" (auto-join)
+    char join_ssid[MM_AP_NAME_MAX]; // SSID of a typed join, for the "Save for later?" prompt
+    // Join result scene: parses join output into a clean status, hiding the
+    // settings dump Marauder prints (which includes the plaintext password).
+    char join_target[MM_AP_NAME_MAX]; // SSID shown on the join screen
+    char join_status[24]; // "Connecting...", "Connected", "Failed"
+    char join_last[40]; // last meaningful (non-settings) line from Marauder
+    char join_ip[16]; // assigned IP, if seen
+    bool join_done; // a terminal status (connected/failed) was detected
+    int join_ticks;
+    char join_bssid[MM_BSSID_LEN]; // BSSID of the AP the current join targets
+    // Believed connection state: set when a join reports Connected, cleared on a
+    // failed join. The link lives on the ESP and can drop on its own, so this is
+    // "our last join to this BSSID succeeded", not a polled live status.
+    bool wifi_connected;
+    char connected_bssid[MM_BSSID_LEN];
+    char connected_ssid[MM_AP_NAME_MAX];
     int sel_ap_prev; // last AP index WE selected (-1 none) -- Marauder select toggles
     int sel_sta_prev; // last station index WE selected (-1 none)
 
@@ -241,3 +262,8 @@ typedef enum {
 // earlier targets. sta_idx < 0 selects the AP only. Tracks only selections
 // made through the app; selections made via the raw Select menu are the user's.
 void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx);
+
+// Upsert a plaintext SSID/password into the auto-join networks file on the SD.
+// Replaces an existing entry for the SSID or appends a new one. Returns true on
+// a successful write. Password is written verbatim; caller has user consent.
+bool mm_save_network_password(WifiMarauderApp* app, const char* ssid, const char* pass);

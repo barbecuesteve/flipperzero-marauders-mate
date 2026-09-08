@@ -7,6 +7,11 @@ dist/
 *.fap
 build/
 
+# Real WiFi passwords for auto-join: plaintext, never commit. Only the
+# placeholder example is tracked.
+networks.txt
+!networks.txt.example
+
 # macOS
 .DS_Store
 

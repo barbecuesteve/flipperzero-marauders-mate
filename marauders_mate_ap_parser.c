@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <stdio.h>
 
 bool mm_ap_is_bssid(const char* s) {
     if(!s || strlen(s) != 17) return false;
@@ -513,4 +514,75 @@ bool mm_probe_parse_line(const char* line, MMScanAp* out) {
         out->ssid[n] = '\0';
     }
     return true;
+}
+
+// --------------------------------------------------------------------------
+// `join` output support
+// --------------------------------------------------------------------------
+
+// Case-insensitive substring search (portable; avoids GNU strcasestr).
+static const char* mm_ci_strstr(const char* hay, const char* needle) {
+    if(!hay || !needle) return NULL;
+    if(!*needle) return hay;
+    for(; *hay; hay++) {
+        const char* h = hay;
+        const char* n = needle;
+        while(*h && *n && tolower((unsigned char)*h) == tolower((unsigned char)*n)) {
+            h++;
+            n++;
+        }
+        if(!*n) return hay;
+    }
+    return NULL;
+}
+
+bool mm_join_line_is_noise(const char* line) {
+    if(!line) return true;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t' || *p == '>') p++;
+    if(*p == '\0') return true; // blank
+    // The settings dump Marauder prints after a join -- and, critically, every
+    // line that carries the plaintext password.
+    if(*p == '#') return true; // command echo, e.g. "#join -a 15 -p <password>"
+    if(mm_ci_strstr(p, " -p ")) return true; // any residual "join ... -p <pw>"
+    if(mm_ci_strstr(p, "Password:")) return true; // "Using SSID: X Password: Y"
+    if(strncmp(p, "Value:", 6) == 0) return true; // includes ClientPW value
+    if(strncmp(p, "Name:", 5) == 0) return true;
+    if(strncmp(p, "Type:", 5) == 0) return true;
+    if(strncmp(p, "Settings", 8) == 0) return true;
+    if(*p == '-') return true; // "----" separators
+    return false;
+}
+
+bool mm_join_parse_ip(const char* line, char* ip_out) {
+    if(!line || !ip_out) return false;
+    for(const char* p = line; *p; p++) {
+        if(*p < '0' || *p > '9') continue;
+        int a, b, c, d, n = 0;
+        if(sscanf(p, "%d.%d.%d.%d%n", &a, &b, &c, &d, &n) == 4) {
+            if(a >= 0 && a <= 255 && b >= 0 && b <= 255 && c >= 0 && c <= 255 && d >= 0 &&
+               d <= 255 && !(a == 0 && b == 0 && c == 0 && d == 0)) {
+                snprintf(ip_out, 16, "%d.%d.%d.%d", a, b, c, d);
+                return true;
+            }
+        }
+        // skip the rest of this number run to avoid rescanning digits
+        while(*p >= '0' && *p <= '9') p++;
+        if(!*p) break;
+    }
+    return false;
+}
+
+MMJoinLineType mm_join_classify(const char* line) {
+    if(!line) return MMJoinLineNone;
+    if(mm_ci_strstr(line, "fail") || mm_ci_strstr(line, "disconnect") ||
+       mm_ci_strstr(line, "error") || mm_ci_strstr(line, "no ssid") ||
+       mm_ci_strstr(line, "not found") || mm_ci_strstr(line, "could not") ||
+       mm_ci_strstr(line, "couldn't") || mm_ci_strstr(line, "unable"))
+        return MMJoinLineFailed;
+    if(mm_ci_strstr(line, "connected") || mm_ci_strstr(line, "wifi connected") ||
+       mm_ci_strstr(line, "got ip"))
+        return MMJoinLineConnected;
+    if(mm_ci_strstr(line, "connecting")) return MMJoinLineConnecting;
+    return MMJoinLineNone;
 }

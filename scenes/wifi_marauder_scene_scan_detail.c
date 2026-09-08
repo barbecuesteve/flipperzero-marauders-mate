@@ -5,6 +5,37 @@
 // exact AP via its resolved `select -a <index>`; if the index could not be
 // resolved unambiguously the AP is shown but not targetable.
 #include "../wifi_marauder_app_i.h"
+#include <flipper_format/flipper_format.h>
+
+// Look up a plaintext WiFi password for `ssid` in the optional networks file.
+// FlipperFormat, read as sequential SSID/Pass pairs:
+//   SSID: HomeNet
+//   Pass: correcthorse
+// Returns true and copies the password into pass_out on an exact SSID match.
+// The password is handled only in RAM here; it is never logged.
+static bool mm_lookup_network_password(
+    WifiMarauderApp* app, const char* ssid, char* pass_out, size_t pass_sz) {
+    if(!ssid || ssid[0] == '\0') return false;
+    FlipperFormat* ff = flipper_format_file_alloc(app->storage);
+    bool found = false;
+    if(flipper_format_file_open_existing(ff, MM_NETWORKS_FILEPATH)) {
+        FuriString* name = furi_string_alloc();
+        FuriString* pass = furi_string_alloc();
+        while(flipper_format_read_string(ff, "SSID", name)) {
+            if(!flipper_format_read_string(ff, "Pass", pass)) break;
+            if(furi_string_equal_str(name, ssid)) {
+                strncpy(pass_out, furi_string_get_cstr(pass), pass_sz - 1);
+                pass_out[pass_sz - 1] = '\0';
+                found = true;
+                break;
+            }
+        }
+        furi_string_free(name);
+        furi_string_free(pass);
+    }
+    flipper_format_free(ff);
+    return found;
+}
 
 // Submenu item ids (arbitrary, distinct from any store index).
 enum {
@@ -76,6 +107,14 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
 
     submenu_set_header(submenu, ap->hidden ? "[Hidden AP]" : ap->ssid);
 
+    // Connected indicator (info row) when our last successful join was this AP.
+    bool connected_here =
+        app->wifi_connected && strcmp(app->connected_bssid, ap->bssid) == 0;
+    if(connected_here) {
+        submenu_add_item(
+            submenu, "* Connected (joined)", MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
+    }
+
     char line[40];
     snprintf(line, sizeof(line), "CH %d   %d dBm", ap->channel, ap->rssi);
     submenu_add_item(submenu, line, MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
@@ -99,8 +138,10 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
             submenu, "(not targetable)", MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
     }
 
-    // Start the cursor on the first actionable row (Stations), not an info row.
-    submenu_set_selected_item(submenu, 2);
+    // Start the cursor on the first actionable row (Stations). Selection is by
+    // item VALUE, so target MM_D_STATIONS directly (independent of how many info
+    // rows, incl. the optional Connected row, precede it).
+    submenu_set_selected_item(submenu, MM_D_STATIONS);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewSubmenu);
 }
@@ -123,17 +164,50 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneFoxHunt);
             consumed = true;
         } else if(event.event == WifiMarauderEventScanJoin) {
-            // Reuse the generic text-input flow: prefill "join -a <idx> -p" and
-            // let the keyboard append the password (typed on the Flipper).
             int resolved = app->scan_resolved_index[app->scan_selected];
-            snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "join -a %d -p", resolved);
-            app->selected_tx_string = app->ap_cmd_buf;
-            app->is_command = true;
-            app->is_custom_tx_string = false;
-            app->focus_console_start = false;
-            app->show_stopscan_tip = false;
-            app->script = NULL;
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneTextInput);
+            MMScanAp* jap = &app->scan_aps[app->scan_selected];
+
+            // If the network's password is in the optional networks file, join
+            // straight away without a keyboard prompt (password never shown).
+            char pass[64];
+            bool auto_join = !jap->hidden &&
+                             mm_lookup_network_password(app, jap->ssid, pass, sizeof(pass));
+            // SSID + BSSID of the AP being joined (for the result screen and the
+            // connected-state indicator).
+            strncpy(app->join_target, jap->hidden ? "[hidden]" : jap->ssid,
+                    sizeof(app->join_target) - 1);
+            app->join_target[sizeof(app->join_target) - 1] = '\0';
+            strncpy(app->join_bssid, jap->bssid, sizeof(app->join_bssid) - 1);
+            app->join_bssid[sizeof(app->join_bssid) - 1] = '\0';
+
+            if(auto_join) {
+                app->join_ssid[0] = '\0'; // already stored: no save prompt
+                snprintf(
+                    app->join_cmd, sizeof(app->join_cmd), "join -a %d -p %s", resolved, pass);
+                memset(pass, 0, sizeof(pass)); // don't leave the password on the stack
+                app->selected_tx_string = app->join_cmd;
+                app->is_command = true;
+                app->is_custom_tx_string = false;
+                app->focus_console_start = false;
+                app->show_stopscan_tip = false;
+                app->script = NULL;
+                scene_manager_next_scene(app->scene_manager, WifiMarauderSceneJoin);
+            } else {
+                // No stored password: reuse the text-input flow: prefill
+                // "join -a <idx> -p" and let the keyboard append the password.
+                // Remember the SSID so the text-input scene can offer to save it.
+                strncpy(app->join_ssid, jap->ssid, sizeof(app->join_ssid) - 1);
+                app->join_ssid[sizeof(app->join_ssid) - 1] = '\0';
+                if(jap->hidden) app->join_ssid[0] = '\0'; // hidden: nothing to key on
+                snprintf(app->ap_cmd_buf, sizeof(app->ap_cmd_buf), "join -a %d -p", resolved);
+                app->selected_tx_string = app->ap_cmd_buf;
+                app->is_command = true;
+                app->is_custom_tx_string = false;
+                app->focus_console_start = false;
+                app->show_stopscan_tip = false;
+                app->script = NULL;
+                scene_manager_next_scene(app->scene_manager, WifiMarauderSceneTextInput);
+            }
             consumed = true;
         } else if(event.event == WifiMarauderEventScanHosts) {
             app->host_state = MMHostScanning; // force a fresh sweep

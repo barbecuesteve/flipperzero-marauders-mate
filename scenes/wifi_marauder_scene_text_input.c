@@ -84,7 +84,20 @@ bool wifi_marauder_scene_text_input_on_event(void* context, SceneManagerEvent ev
         if(event.event == WifiMarauderEventStartConsole) {
             // Point to custom string to send
             app->selected_tx_string = app->text_input_store;
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+            bool is_join = 0 == strncmp("join -a", app->text_input_store, strlen("join -a")) &&
+                           strstr(app->text_input_store, " -p ") != NULL;
+            if(is_join && app->join_ssid[0]) {
+                // Known SSID: detour through the "Save for later?" confirm scene,
+                // which then runs the join. (A blocking dialog can't be shown
+                // from here -- it deadlocks the GUI loop.)
+                scene_manager_next_scene(app->scene_manager, WifiMarauderSceneJoinSave);
+            } else if(is_join) {
+                // Join with nothing to save (e.g. hidden AP): straight to the
+                // clean join result screen (which hides the password echo).
+                scene_manager_next_scene(app->scene_manager, WifiMarauderSceneJoin);
+            } else {
+                scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+            }
             consumed = true;
         } else if(event.event == WifiMarauderEventSaveSourceMac) {
             if(12 != strlen(app->text_input_store)) {

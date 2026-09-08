@@ -6,3 +6,5 @@ cc -Wall -Wextra -std=gnu11 tools/ap_parser_test.c marauders_mate_ap_parser.c -o
 /tmp/mm_test_ap_parser
 cc -Wall -Wextra -std=gnu11 tools/scanall_parser_test.c marauders_mate_ap_parser.c -o /tmp/mm_test_scanall
 /tmp/mm_test_scanall
+cc -Wall -Wextra -std=gnu11 tools/join_parser_test.c marauders_mate_ap_parser.c -o /tmp/mm_test_join
+/tmp/mm_test_join

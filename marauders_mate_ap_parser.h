@@ -129,3 +129,25 @@ bool mm_beacon_parse_line(const char* line, MMScanAp* out);
 // Stores the client MAC in out->bssid and the requested SSID in out->ssid
 // (empty request -> hidden=true, ssid=""). Tolerates a "> " prompt.
 bool mm_probe_parse_line(const char* line, MMScanAp* out);
+
+// --- `join` output support --------------------------------------------------
+
+// True if a join-output line is settings-dump or password-bearing and must NOT
+// be shown: the "Name:/Type:/Value:" settings block, its "Settings"/"----"
+// separators, or any line carrying the password ("Password:" / "Value:"). The
+// Join screen shows only lines this rejects-as-noise returns false for.
+bool mm_join_line_is_noise(const char* line);
+
+// Extract an assigned IPv4 (dotted quad, not 0.0.0.0) from a line into ip_out
+// (>= 16 bytes). Returns true only when a real address is found.
+bool mm_join_parse_ip(const char* line, char* ip_out);
+
+typedef enum {
+    MMJoinLineNone, // nothing conclusive
+    MMJoinLineConnecting, // "Connecting to WiFi"
+    MMJoinLineConnected, // success marker
+    MMJoinLineFailed, // failure/disconnect/error marker
+} MMJoinLineType;
+
+// Classify a (non-noise) join-output line as progress/success/failure.
+MMJoinLineType mm_join_classify(const char* line);

@@ -77,6 +77,26 @@ int main(void) {
         }
     }
 
+    // --- pingscan streamed host lines ---------------------------------------
+    char pip[16];
+    CHECK(mm_pingscan_parse_ip("> 192.168.0.101", pip) && strcmp(pip, "192.168.0.101") == 0,
+          "bare IP with '> ' prompt (got '%s')", pip);
+    CHECK(mm_pingscan_parse_ip("192.168.0.143", pip) && strcmp(pip, "192.168.0.143") == 0,
+          "bare IP");
+    CHECK(!mm_pingscan_parse_ip("IP address: 192.168.0.139", pip),
+          "header 'IP address:' must be rejected (not a bare IP)");
+    CHECK(!mm_pingscan_parse_ip("Gateway: 192.168.0.1", pip), "header 'Gateway:' rejected");
+    CHECK(!mm_pingscan_parse_ip("MAC: DE:AD:BE:EF:FE:ED", pip), "header 'MAC:' rejected");
+    CHECK(!mm_pingscan_parse_ip("Starting Ping Scan with...", pip), "status line rejected");
+    CHECK(!mm_pingscan_parse_ip("[0] 192.168.0.101", pip),
+          "list -i row (has [n]) is not a bare pingscan line");
+
+    // --- Bluetooth support probe --------------------------------------------
+    CHECK(mm_bt_line_unsupported("Bluetooth not supported"), "S2 no-BT reply detected");
+    CHECK(mm_bt_line_unsupported("> Bluetooth not supported"), "with prompt prefix");
+    CHECK(!mm_bt_line_unsupported("Starting Bluetooth sniff"), "BT-capable start line is not 'no'");
+    CHECK(!mm_bt_line_unsupported("Sniffing..."), "unrelated line is not 'no'");
+
     if(failures == 0) {
         printf("join_parser_test: OK\n");
         return 0;

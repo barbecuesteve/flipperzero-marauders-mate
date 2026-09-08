@@ -115,6 +115,11 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
         app->selected_option_index[i] = 0;
     }
 
+    // Protocol-category menu state
+    app->menu_category = MMCatWifi;
+    for(int i = 0; i < MMCatCount; ++i) app->category_cursor[i] = 0;
+    app->bt_state = MMBtUnknown;
+
     app->special_case_input_step = 0;
 
     app->text_box = text_box_alloc();
@@ -127,6 +132,9 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->ap_scan_buffer = furi_string_alloc();
     furi_string_reserve(app->ap_scan_buffer, 2048);
     app->host_count = 0;
+    app->host_built = 0;
+    app->host_dirty = false;
+    app->host_selected = 0;
     app->host_state = MMHostReady; // detail scene forces a fresh scan
     app->beacon_ap_count = 0;
     app->probe_client_count = 0;
@@ -178,7 +186,10 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     view_dispatcher_add_view(
         app->view_dispatcher, WifiMarauderAppViewSubmenu, submenu_get_view(app->submenu));
 
-    scene_manager_next_scene(app->scene_manager, WifiMarauderSceneStart);
+    // NOTE: the first scene is launched by wifi_marauder_app() AFTER the UART is
+    // initialized. The category menu probes BT over UART on enter, so it must
+    // not run while app->uart is still uninitialized.
+    app->uart = NULL;
 
     return app;
 }
@@ -319,6 +330,10 @@ int32_t wifi_marauder_app(void* p) {
     wifi_marauder_load_settings(wifi_marauder_app);
 
     wifi_marauder_app->uart = wifi_marauder_usart_init(wifi_marauder_app);
+
+    // Launch the first scene now that the UART is ready (the category menu
+    // probes BT over UART on enter).
+    scene_manager_next_scene(wifi_marauder_app->scene_manager, WifiMarauderSceneCategories);
 
     view_dispatcher_run(wifi_marauder_app->view_dispatcher);
 

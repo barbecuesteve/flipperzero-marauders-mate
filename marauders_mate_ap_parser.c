@@ -396,6 +396,29 @@ bool mm_listi_parse_ip(const char* line, char* ip_out) {
     return true;
 }
 
+bool mm_pingscan_parse_ip(const char* line, char* ip_out) {
+    if(!line || !ip_out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '\t' || *p == '>') p++; // strip prompt + indent
+    size_t n = strlen(p);
+    while(n > 0 && (p[n - 1] == '\r' || p[n - 1] == '\n' || p[n - 1] == ' ')) n--;
+    if(n == 0 || n >= 16) return false;
+    // The whole remaining token must be an IPv4. This rejects the header lines
+    // ("IP address: ...", "Gateway: ...", "MAC: ...") which have text first.
+    int dots = 0;
+    for(size_t i = 0; i < n; i++) {
+        char c = p[i];
+        if(c == '.')
+            dots++;
+        else if(c < '0' || c > '9')
+            return false;
+    }
+    if(dots != 3) return false;
+    memcpy(ip_out, p, n);
+    ip_out[n] = '\0';
+    return true;
+}
+
 bool mm_beacon_parse_line(const char* line, MMScanAp* out) {
     if(!line || !out) return false;
     const char* p = line;
@@ -571,6 +594,14 @@ bool mm_join_parse_ip(const char* line, char* ip_out) {
         if(!*p) break;
     }
     return false;
+}
+
+bool mm_bt_line_unsupported(const char* line) {
+    // Firmware prints exactly "Bluetooth not supported" on WiFi-only boards
+    // (ESP32-S2) -- CommandLine.cpp. Require both words so other "not supported"
+    // strings (SD card, GPS) can't be mistaken for it.
+    return line && mm_ci_strstr(line, "bluetooth") != NULL &&
+           mm_ci_strstr(line, "not supported") != NULL;
 }
 
 MMJoinLineType mm_join_classify(const char* line) {

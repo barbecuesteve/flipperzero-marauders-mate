@@ -21,81 +21,73 @@ typedef struct {
     InputArgs needs_keyboard;
     FocusConsole focus_console;
     bool show_stopscan_tip;
+    MMMenuCategory category; // which protocol section this item lives in
 } WifiMarauderItem;
 
 // NUM_MENU_ITEMS defined in wifi_marauder_app_i.h - if you add an entry here, increment it!
 const WifiMarauderItem items[NUM_MENU_ITEMS] = {
-    {"View Log from", {"start", "end"}, 2, {"", ""}, NO_ARGS, FOCUS_CONSOLE_TOGGLE, NO_TIP},
-    {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
+    {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Scan",
      {"all", "ping", "arp"},
      3,
      {"scanall", "pingscan", "arpscan"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
     {"SSID",
      {"add rand", "add name", "remove"},
      3,
      {"ssid -a -g", "ssid -a -n", "ssid -r"},
      INPUT_ARGS,
      FOCUS_CONSOLE_START,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"List",
      {"ap", "ssid", "station", "airtag", "IPs", "probes", "bluetooth"},
      7,
      {"list -a", "list -s", "list -c", "list -t", "list -i", "list -p", "list -b"},
      NO_ARGS,
      FOCUS_CONSOLE_START,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"Select",
      {"ap", "ssid", "station"},
      3,
      {"select -a", "select -s", "select -c"},
      INPUT_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"Set MAC",
      {"rand ap", "rand sta", "clone ap", "clone sta"},
      4,
      {"randapmac", "randstamac", "cloneapmac -a", "clonestamac -s"},
      TOGGLE_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"Join WiFi", // "new" (join -a -p) is now Live Scan > AP > Join (L3); keep saved-reconnect
      {"saved"},
      1,
      {"join -s"},
      INPUT_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"Clear List",
      {"ap", "ssid", "station"},
      3,
      {"clearlist -a", "clearlist -s", "clearlist -c"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
-    {"Attack",
-     {"deauth",
-      "probe",
-      "rickroll",
-      "funny",
-      "badmsg",
-      "sleep",
-      "sae flood",
-      "csa",
-      "quiet",
-      "sour apple",
-      "apple juice",
-      "swiftpair spam",
-      "samsung spam",
-      "google spam",
-      "flipper spam",
-      "bt spam all"},
-     16,
+     NO_TIP,
+     MMCatWifi},
+    {"WiFi Attack",
+     {"deauth", "probe", "rickroll", "funny", "badmsg", "sleep", "sae flood", "csa", "quiet"},
+     9,
      {"attack -t deauth",
       "attack -t probe",
       "attack -t rickroll",
@@ -104,8 +96,21 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "attack -t sleep",
       "attack -t sae",
       "attack -t csa",
-      "attack -t quiet",
-      "blespam -t sourapple",
+      "attack -t quiet"},
+     NO_ARGS,
+     FOCUS_CONSOLE_END,
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
+    {"BT Spam",
+     {"sour apple",
+      "apple juice",
+      "swiftpair spam",
+      "samsung spam",
+      "google spam",
+      "flipper spam",
+      "bt spam all"},
+     7,
+     {"blespam -t sourapple",
       "blespam -t applejuice",
       "blespam -t windows",
       "blespam -t samsung",
@@ -114,42 +119,48 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "blespam -t all"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatBluetooth},
     {"Airtag",
      {"spoof", "sound"},
      2,
      {"spoofat -t", "findmy -t"},
      INPUT_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatBluetooth},
     {"Wardrive",
      {""},
      1,
      {"wardrive"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatGps},
     {"Upload Wardrive",
      {"wdg", "wigle", "both"},
      3,
      {"upload -d wdg", "upload -d wigle", "upload -d both"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatGps},
     {"Evil Portal",
      {"start", "set html", "set AP"},
      3,
      {"evilportal -c start", "evilportal -c sethtml", "evilportal -c setap"},
      TOGGLE_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
     {"Load Evil Portal HTML file",
      {""},
      1,
      {"evilportal -c sethtmlstr"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatWifi},
     {"Targeted Attacks", // client deauth -> Live Scan > AP > Stations > Deauth
      {"manual",
       "karma",
@@ -162,14 +173,16 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "attack -t sleep -c"},
      INPUT_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
     {"Beacon Spam",
      {"ap list", "ssid list", "random"},
      3,
      {"attack -t beacon -a", "attack -t beacon -l", "attack -t beacon -r"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
     {"Port Scan",
      {"all", "ssh", "telnet", "dns", "http", "smtp", "https", "rdp"},
      8,
@@ -183,20 +196,15 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "portscan -s rdp"},
      INPUT_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
-    {"Sniff", // beacon -> Beacon Mon (Mate); probe -> Probe Mon (Mate)
-     {"deauth", "pmkid", "pwn", "raw", "bt", "skim", "airtag", "flipper", "flock", "meta", "mactrack", "packetcount", "pineapple", "multissid", "sae"},
-     15,
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
+    {"WiFi Sniff",
+     {"deauth", "pmkid", "pwn", "raw", "mactrack", "packetcount", "pineapple", "multissid", "sae"},
+     9,
      {"sniffdeauth",
       "sniffpmkid",
       "sniffpwn",
       "sniffraw",
-      "sniffbt",
-      "sniffskim",
-      "sniffbt -t airtag",
-      "sniffbt -t flipper",
-      "sniffbt -t flock",
-      "sniffbt -t meta",
       "mactrack",
       "packetcount",
       "sniffpinescan",
@@ -204,15 +212,37 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "sniffsae"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatWifi},
+    {"BT Sniff",
+     {"bt", "skim", "airtag", "flipper", "flock", "meta"},
+     6,
+     {"sniffbt",
+      "sniffskim",
+      "sniffbt -t airtag",
+      "sniffbt -t flipper",
+      "sniffbt -t flock",
+      "sniffbt -t meta"},
+     NO_ARGS,
+     FOCUS_CONSOLE_END,
+     SHOW_STOPSCAN_TIP,
+     MMCatBluetooth},
     {"Channel",
      {"get", "set"},
      2,
      {"channel", "channel -s"},
      TOGGLE_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
-    {"LED", {"hex", "pattern"}, 2, {"led -s", "led -p"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP},
+     NO_TIP,
+     MMCatWifi},
+    {"LED",
+     {"hex", "pattern"},
+     2,
+     {"led -s", "led -p"},
+     INPUT_ARGS,
+     FOCUS_CONSOLE_END,
+     NO_TIP,
+     MMCatSystem},
     {"GPS Data",
      {"tracker", "stream", "fix", "sats", "lat", "lon", "alt", "date", "accuracy", "text", "nmea"},
      11,
@@ -229,15 +259,17 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "gps -g nmea"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP},
-    {"NMEA Stream", {""}, 1, {"nmea"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
+     SHOW_STOPSCAN_TIP,
+     MMCatGps},
+    {"NMEA Stream", {""}, 1, {"nmea"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatGps},
     {"GPS POI",
      {"start", "mark", "end"},
      3,
      {"gpspoi -s", "gpspoi -m", "gpspoi -e"},
      NO_ARGS,
      FOCUS_CONSOLE_END,
-     NO_TIP},
+     NO_TIP,
+     MMCatGps},
     {"Settings",
      {"display", "restore", "ForcePMKID", "ForceProbe", "SavePCAP", "EnableLED", "EPDeauth", "other"},
      8,
@@ -251,34 +283,54 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
       "settings -s"},
      TOGGLE_ARGS,
      FOCUS_CONSOLE_START,
-     NO_TIP},
-    {"Shutdown WiFi", {""}, 1, {"stopscan -f"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP},
-    {"List SD", {""}, 1, {"ls /"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Reboot", {""}, 1, {"reboot"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP},
-    {"Info", {""}, 1, {"info"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP},
-    {"Scripts", {""}, 1, {""}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP},
-    {"Save to flipper sdcard", // keep as last entry or change logic in callback below
+     NO_TIP,
+     MMCatSystem},
+    {"Shutdown WiFi", {""}, 1, {"stopscan -f"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatWifi},
+    {"List SD", {""}, 1, {"ls /"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"Reboot", {""}, 1, {"reboot"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP, MMCatSystem},
+    {"Info", {""}, 1, {"info"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatSystem},
+    {"View Log from",
+     {"start", "end"},
+     2,
+     {"", ""},
+     NO_ARGS,
+     FOCUS_CONSOLE_TOGGLE,
+     NO_TIP,
+     MMCatSystem},
+    {"Scripts", {""}, 1, {""}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"Save to flipper sdcard",
      {""},
      1,
      {""},
      NO_ARGS,
      FOCUS_CONSOLE_START,
-     NO_TIP},
+     NO_TIP,
+     MMCatSystem},
 };
 
-static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uint32_t index) {
+// Category renderer: the var list shows only items whose category matches
+// app->menu_category. s_row_to_flat maps a displayed row back to its flat
+// items[] index; s_row_count is how many rows are shown.
+static int s_row_to_flat[NUM_MENU_ITEMS];
+static int s_row_count;
+
+static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uint32_t row) {
     furi_assert(context);
     WifiMarauderApp* app = context;
 
-    furi_assert(index < NUM_MENU_ITEMS);
+    if((int)row >= s_row_count) return; // e.g. the "no BT radio" placeholder
+    const int index = s_row_to_flat[row]; // flat items[] index for this row
     const WifiMarauderItem* item = &items[index];
 
     const int selected_option_index = app->selected_option_index[index];
     furi_assert(selected_option_index < item->num_options_menu);
     app->selected_tx_string = item->actual_commands[selected_option_index];
-    app->is_command = (1 <= index);
+    // "View Log from" is the only non-command entry (it opens the log viewer /
+    // console instead of sending serial). Detect it by name so it can live
+    // anywhere in the menu, not just at index 0.
+    app->is_command = (strcmp(item->item_string, "View Log from") != 0);
     app->is_custom_tx_string = false;
     app->selected_menu_index = index;
     app->focus_console_start = (item->focus_console == FOCUS_CONSOLE_TOGGLE) ?
@@ -318,15 +370,15 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
-    // Select automation script
-    if(index == NUM_MENU_ITEMS - 2) {
+    // Select automation script (detect by name, not position)
+    if(strcmp(item->item_string, "Scripts") == 0) {
         view_dispatcher_send_custom_event(
             app->view_dispatcher, WifiMarauderEventStartScriptSelect);
         return;
     }
 
-    if(index == NUM_MENU_ITEMS - 1) {
-        // "Save to flipper sdcard" special case - start SettingsInit widget
+    if(strcmp(item->item_string, "Save to flipper sdcard") == 0) {
+        // start SettingsInit widget
         view_dispatcher_send_custom_event(
             app->view_dispatcher, WifiMarauderEventStartSettingsInit);
         return;
@@ -357,12 +409,25 @@ static void wifi_marauder_scene_start_var_list_change_callback(VariableItem* ite
 void wifi_marauder_scene_start_on_enter(void* context) {
     WifiMarauderApp* app = context;
     VariableItemList* var_item_list = app->var_item_list;
+    MMMenuCategory cat = app->menu_category;
 
     variable_item_list_set_enter_callback(
         var_item_list, wifi_marauder_scene_start_var_list_enter_callback, app);
 
+    // Bluetooth on a board with no BT radio: show a single non-actionable note.
+    if(cat == MMCatBluetooth && app->bt_state == MMBtNo) {
+        variable_item_list_add(var_item_list, "No BT radio on board", 1, NULL, app);
+        s_row_count = 0; // no real rows; enter callback ignores the placeholder
+        view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewVarItemList);
+        return;
+    }
+
+    // Build only the rows for this category; remember each row's flat index.
+    s_row_count = 0;
     VariableItem* item;
     for(int i = 0; i < NUM_MENU_ITEMS; ++i) {
+        if(items[i].category != cat) continue;
+        s_row_to_flat[s_row_count++] = i;
         item = variable_item_list_add(
             var_item_list,
             items[i].item_string,
@@ -374,15 +439,11 @@ void wifi_marauder_scene_start_on_enter(void* context) {
             item, items[i].options_menu[app->selected_option_index[i]]);
     }
 
-    variable_item_list_set_selected_item(
-        var_item_list, scene_manager_get_scene_state(app->scene_manager, WifiMarauderSceneStart));
+    // Restore the per-category cursor (a display row).
+    if(app->category_cursor[cat] < s_row_count)
+        variable_item_list_set_selected_item(var_item_list, app->category_cursor[cat]);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewVarItemList);
-
-    // Wait, if the user hasn't initialized sdcard settings, let's prompt them once (then come back here)
-    if(app->need_to_prompt_settings_init) {
-        scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSettingsInit);
-    }
 }
 
 bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) {
@@ -428,16 +489,20 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneProbeMon);
+        } else if(event.event == WifiMarauderEventStartDeviceInfo) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneDeviceInfo);
         }
         consumed = true;
     } else if(event.type == SceneManagerEventTypeTick) {
-        app->selected_menu_index = variable_item_list_get_selected_item_index(app->var_item_list);
-        consumed = true;
-    } else if(event.type == SceneManagerEventTypeBack) {
-        scene_manager_stop(app->scene_manager);
-        view_dispatcher_stop(app->view_dispatcher);
+        int row = variable_item_list_get_selected_item_index(app->var_item_list);
+        app->category_cursor[app->menu_category] = row;
+        app->selected_menu_index = (row < s_row_count) ? s_row_to_flat[row] : 0;
         consumed = true;
     }
+    // Back is NOT consumed here: let the scene manager pop back to the category
+    // menu (this scene is now the per-category renderer, not the app root).
 
     return consumed;
 }

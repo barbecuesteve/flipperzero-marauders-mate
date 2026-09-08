@@ -28,7 +28,23 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (35)
+#define NUM_MENU_ITEMS (37)
+
+// Top-level protocol categories for the restructured main menu.
+typedef enum {
+    MMCatWifi,
+    MMCatBluetooth,
+    MMCatGps,
+    MMCatSystem,
+    MMCatCount,
+} MMMenuCategory;
+
+// Believed Bluetooth-hardware support (probed once per session via `sniffbt`).
+typedef enum {
+    MMBtUnknown,
+    MMBtYes,
+    MMBtNo,
+} MMBtState;
 
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
@@ -118,8 +134,12 @@ struct WifiMarauderApp {
     int open_log_file_num_pages;
 
     WifiMarauderUart* uart;
-    int selected_menu_index;
+    int selected_menu_index; // flat index into items[] of the highlighted row
     int selected_option_index[NUM_MENU_ITEMS];
+    // Protocol-category menu state
+    MMMenuCategory menu_category; // category the per-category renderer shows
+    int category_cursor[MMCatCount]; // remembered cursor (display row) per category
+    MMBtState bt_state; // Bluetooth-hardware support, probed once per session
     const char* selected_tx_string;
     bool is_command;
     bool is_custom_tx_string;
@@ -210,6 +230,8 @@ struct WifiMarauderApp {
     // Marauder's Mate: L3 host discovery
     char hosts[MM_HOST_MAX][16]; // discovered host IPs (dotted quad)
     int host_count;
+    int host_built; // host_count at the last submenu rebuild (rebuild only when it grows)
+    bool host_dirty; // a new host arrived; submenu needs a (throttled) rebuild
     int host_selected;
     MMHostState host_state;
     int host_ticks;

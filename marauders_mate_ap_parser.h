@@ -120,11 +120,11 @@ bool mm_foxhunt_parse_rssi(const char* line, int* rssi);
 // ip_out (>= 16 bytes). Returns true only on a valid host row.
 bool mm_listi_parse_ip(const char* line, char* ip_out);
 
-// Parse a streamed `pingscan` host line: a bare "<IPv4>" (tolerating a leading
-// "> " prompt), as pingscan prints each host it finds. Rejects the header lines
-// ("IP address: ...", "Gateway: ...", "MAC: ...") that carry an IP after text.
-// Writes the IP into ip_out (>= 16 bytes).
-bool mm_pingscan_parse_ip(const char* line, char* ip_out);
+// Parse a streamed host-discovery line: a bare "<IPv4>" (tolerating a leading
+// "> " prompt), as arpscan/pingscan print each active host. Rejects lines that
+// carry an IP after other text (e.g. pingscan's "IP address:/Gateway:/MAC:"
+// header). Writes the IP into ip_out (>= 16 bytes).
+bool mm_hostscan_parse_ip(const char* line, char* ip_out);
 
 // Parse a `sniffbeacon` line: "<rssi> Ch: <ch> <bssid> ESSID: <name>". Like the
 // scanall AP line but with NO trailing metadata tokens -- the ESSID runs to end

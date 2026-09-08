@@ -28,7 +28,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (37)
+#define NUM_MENU_ITEMS (40)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {
@@ -36,6 +36,7 @@ typedef enum {
     MMCatBluetooth,
     MMCatGps,
     MMCatSystem,
+    MMCatSpoof, // sub-section of WiFi (Evil Portal / beacon / SSID list / AP MAC)
     MMCatCount,
 } MMMenuCategory;
 
@@ -284,6 +285,10 @@ typedef enum {
 // earlier targets. sta_idx < 0 selects the AP only. Tracks only selections
 // made through the app; selections made via the raw Select menu are the user's.
 void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx);
+
+// Build the main-menu VariableItemList for one category and switch to it. Shared
+// by the category renderer (scene_start) and the AP Spoofing sub-menu.
+void wifi_marauder_render_category(WifiMarauderApp* app, MMMenuCategory cat);
 
 // Upsert a plaintext SSID/password into the auto-join networks file on the SD.
 // Replaces an existing entry for the SSID or appends a new one. Returns true on

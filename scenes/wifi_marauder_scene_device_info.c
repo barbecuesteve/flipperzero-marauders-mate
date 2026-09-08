@@ -34,6 +34,16 @@ static void wifi_marauder_device_info_build(WifiMarauderApp* app) {
     submenu_reset(submenu);
     submenu_set_header(submenu, "Device Info");
 
+    // Our believed connection state (from the join flow) up top -- `info` itself
+    // does not report whether the STA is joined to a network.
+    char conn[64];
+    if(app->wifi_connected && app->connected_ssid[0]) {
+        snprintf(conn, sizeof(conn), "Connected: %s", app->connected_ssid);
+    } else {
+        snprintf(conn, sizeof(conn), "Not connected");
+    }
+    submenu_add_item(submenu, conn, MM_INFO_ROW, wifi_marauder_device_info_noop_cb, app);
+
     int shown = 0;
     const char* text = furi_string_get_cstr(app->ap_scan_buffer);
     char line[96];

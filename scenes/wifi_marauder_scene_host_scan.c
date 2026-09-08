@@ -1,17 +1,11 @@
 // Marauder's Mate: L3 host discovery scene.
 //
-// After the ESP has joined a network (via the AP detail's Join), pingscan
-// sweeps the subnet and `list -i` yields the live host IPs. pingscan only
-// populates the list once its full sweep completes (~45s), so this waits out
-// the sweep, then parses the IP list into a navigable view.
-//
-// Port scanning is intentionally not wired here yet: `portscan -s <service>`
-// is the working form, but its output could not be reliably captured on this
-// board, so shipping it would show an empty console. Deferred.
+// After the ESP has joined a network (via the AP detail's Join), `arpscan`
+// sweeps the subnet. It is much faster than pingscan and STREAMS each active
+// host as a bare "<IPv4>" line, so we parse those live and grow the list as
+// they arrive. The scan keeps running until you leave or Rescan.
 #include "../wifi_marauder_app_i.h"
 
-#define MM_PINGSCAN_TICKS (450) // ~45s: pingscan stores results only on completion
-#define MM_HOSTLIST_TICKS (20) // ~2s to collect list -i output
 #define MM_ITEM_RESCAN (0xFFFFFFFFu)
 
 static void wifi_marauder_host_scan_rx_cb(uint8_t* buf, size_t len, void* context) {
@@ -36,62 +30,79 @@ static void wifi_marauder_host_scan_item_cb(void* context, uint32_t index) {
 
 static void wifi_marauder_host_scan_build(WifiMarauderApp* app) {
     Submenu* submenu = app->submenu;
+    uint32_t sel = submenu_get_selected_item(submenu); // by item value (the IP index)
     submenu_reset(submenu);
     char header[48];
-    if(app->host_count == 0) {
-        submenu_set_header(submenu, "No hosts found");
+    if(app->host_state == MMHostScanning) {
+        snprintf(header, sizeof(header), "Scanning... (%d)", app->host_count);
+    } else if(app->host_count == 0) {
+        snprintf(header, sizeof(header), "No hosts found");
     } else {
         snprintf(header, sizeof(header), "Hosts: %d", app->host_count);
-        submenu_set_header(submenu, header);
     }
+    submenu_set_header(submenu, header);
     for(int i = 0; i < app->host_count; i++) {
         submenu_add_item(
             submenu, app->hosts[i], (uint32_t)i, wifi_marauder_host_scan_item_cb, app);
     }
     submenu_add_item(submenu, "> Rescan", MM_ITEM_RESCAN, wifi_marauder_host_scan_item_cb, app);
+    submenu_set_selected_item(submenu, sel);
 }
 
 static void wifi_marauder_host_scan_start(WifiMarauderApp* app) {
     app->host_count = 0;
+    app->host_built = 0;
+    app->host_dirty = false;
     app->host_state = MMHostScanning;
     app->host_ticks = 0;
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
-    furi_string_reset(app->ap_scan_buffer);
 
     submenu_reset(app->submenu);
-    submenu_set_header(app->submenu, "Scanning subnet...");
+    submenu_set_header(app->submenu, "Scanning...");
 
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_host_scan_rx_cb);
     wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
-    wifi_marauder_host_scan_tx(app, "pingscan\n");
+    wifi_marauder_host_scan_tx(app, "arpscan\n");
 }
 
-// Drain the RX stream; during the list phase, accumulate for parsing.
+// Drain the RX stream and parse each streamed host IP into the store (deduped).
 static void wifi_marauder_host_scan_drain(WifiMarauderApp* app) {
     uint8_t tmp[129];
     size_t got;
     while((got = furi_stream_buffer_receive(app->scan_stream, tmp, sizeof(tmp) - 1, 0)) > 0) {
-        if(app->host_state != MMHostListing) continue; // discard pingscan chatter
         mm_sanitize_nuls(tmp, got);
         tmp[got] = '\0';
-        furi_string_cat_str(app->ap_scan_buffer, (const char*)tmp);
+        furi_string_cat_str(app->scan_line, (const char*)tmp);
     }
-}
 
-static void wifi_marauder_host_scan_parse(WifiMarauderApp* app) {
-    app->host_count = 0;
-    const char* text = furi_string_get_cstr(app->ap_scan_buffer);
-    char line[64];
-    while(*text && app->host_count < MM_HOST_MAX) {
-        const char* nl = strchr(text, '\n');
-        size_t len = nl ? (size_t)(nl - text) : strlen(text);
-        size_t cpy = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
-        memcpy(line, text, cpy);
-        line[cpy] = '\0';
-        if(mm_listi_parse_ip(line, app->hosts[app->host_count])) app->host_count++;
+    int processed = 0;
+    for(;;) {
+        const char* cstr = furi_string_get_cstr(app->scan_line);
+        const char* nl = strchr(cstr, '\n');
         if(!nl) break;
-        text = nl + 1;
+        size_t len = (size_t)(nl - cstr);
+        char line[64];
+        size_t cpy = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
+        memcpy(line, cstr, cpy);
+        line[cpy] = '\0';
+        furi_string_right(app->scan_line, len + 1);
+
+        char ip[16];
+        if(mm_hostscan_parse_ip(line, ip)) {
+            bool dup = false;
+            for(int i = 0; i < app->host_count; i++) {
+                if(strcmp(app->hosts[i], ip) == 0) {
+                    dup = true;
+                    break;
+                }
+            }
+            if(!dup && app->host_count < MM_HOST_MAX) {
+                strcpy(app->hosts[app->host_count++], ip);
+                app->host_dirty = true;
+            }
+        }
+        if(++processed >= 24) break; // bound GUI-thread work per tick
     }
 }
 
@@ -111,31 +122,22 @@ bool wifi_marauder_scene_host_scan_on_event(void* context, SceneManagerEvent eve
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeTick) {
-        wifi_marauder_host_scan_drain(app);
-
         if(app->host_state == MMHostScanning) {
-            if(app->host_ticks % 10 == 0) {
-                int left = (MM_PINGSCAN_TICKS - app->host_ticks) / 10;
+            wifi_marauder_host_scan_drain(app);
+            // Rebuild only when the host set grew (throttled ~2/s) to keep the
+            // GUI thread free -- same lockup-avoidance as the live AP scan.
+            bool grew = app->host_count > app->host_built;
+            if(grew && (app->host_ticks % 5 == 0)) {
+                wifi_marauder_host_scan_build(app);
+                app->host_built = app->host_count;
+                app->host_dirty = false;
+            } else if(app->host_ticks % 10 == 0) {
+                // keep the "Scanning... (N)" header ticking even with no new host
                 char header[48];
-                snprintf(header, sizeof(header), "Scanning subnet ~%ds", left);
+                snprintf(header, sizeof(header), "Scanning... (%d)", app->host_count);
                 submenu_set_header(app->submenu, header);
             }
-            if(++app->host_ticks >= MM_PINGSCAN_TICKS) {
-                wifi_marauder_host_scan_tx(app, "stopscan\n");
-                furi_string_reset(app->ap_scan_buffer);
-                wifi_marauder_host_scan_tx(app, "list -i\n");
-                app->host_state = MMHostListing;
-                app->host_ticks = 0;
-                submenu_set_header(app->submenu, "Loading hosts...");
-            }
-        } else if(app->host_state == MMHostListing) {
-            if(++app->host_ticks >= MM_HOSTLIST_TICKS) {
-                wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
-                wifi_marauder_host_scan_drain(app);
-                wifi_marauder_host_scan_parse(app);
-                app->host_state = MMHostReady;
-                wifi_marauder_host_scan_build(app);
-            }
+            app->host_ticks++;
         }
         consumed = true;
     }
@@ -145,7 +147,7 @@ bool wifi_marauder_scene_host_scan_on_event(void* context, SceneManagerEvent eve
 
 void wifi_marauder_scene_host_scan_on_exit(void* context) {
     WifiMarauderApp* app = context;
-    if(app->host_state == MMHostScanning || app->host_state == MMHostListing) {
+    if(app->host_state == MMHostScanning) {
         wifi_marauder_host_scan_tx(app, "stopscan\n");
         app->host_state = MMHostReady;
     }

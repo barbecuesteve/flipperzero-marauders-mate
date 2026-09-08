@@ -29,30 +29,17 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
-    {"Scan",
-     {"all", "ping", "arp"},
-     3,
-     {"scanall", "pingscan", "arpscan"},
-     NO_ARGS,
-     FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP,
-     MMCatWifi},
-    {"SSID",
+    {"Spoof SSIDs", // the SSID list broadcast by Beacon Spam / Evil Portal
      {"add rand", "add name", "remove"},
      3,
      {"ssid -a -g", "ssid -a -n", "ssid -r"},
      INPUT_ARGS,
      FOCUS_CONSOLE_START,
      NO_TIP,
-     MMCatWifi},
-    {"List",
-     {"ap", "ssid", "station", "airtag", "IPs", "probes", "bluetooth"},
-     7,
-     {"list -a", "list -s", "list -c", "list -t", "list -i", "list -p", "list -b"},
-     NO_ARGS,
-     FOCUS_CONSOLE_START,
-     NO_TIP,
-     MMCatWifi},
+     MMCatSpoof},
+    {"View SSIDs", {""}, 1, {"list -s"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatSpoof},
+    {"AirTags", {""}, 1, {"list -t"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
+    {"BT Devices", {""}, 1, {"list -b"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
     {"Select",
      {"ap", "ssid", "station"},
      3,
@@ -61,14 +48,23 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      NO_TIP,
      MMCatWifi},
-    {"Set MAC",
-     {"rand ap", "rand sta", "clone ap", "clone sta"},
-     4,
-     {"randapmac", "randstamac", "cloneapmac -a", "clonestamac -s"},
+    {"Set STA MAC",
+     {"rand", "clone"},
+     2,
+     {"randstamac", "clonestamac -s"},
      TOGGLE_ARGS,
      FOCUS_CONSOLE_END,
      NO_TIP,
      MMCatWifi},
+    {"AP Spoofing", {""}, 1, {"spoofmenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Set AP MAC",
+     {"rand", "clone"},
+     2,
+     {"randapmac", "cloneapmac -a"},
+     TOGGLE_ARGS,
+     FOCUS_CONSOLE_END,
+     NO_TIP,
+     MMCatSpoof},
     {"Join WiFi", // "new" (join -a -p) is now Live Scan > AP > Join (L3); keep saved-reconnect
      {"saved"},
      1,
@@ -152,7 +148,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      TOGGLE_ARGS,
      FOCUS_CONSOLE_END,
      SHOW_STOPSCAN_TIP,
-     MMCatWifi},
+     MMCatSpoof},
     {"Load Evil Portal HTML file",
      {""},
      1,
@@ -160,7 +156,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      NO_ARGS,
      FOCUS_CONSOLE_END,
      NO_TIP,
-     MMCatWifi},
+     MMCatSpoof},
     {"Targeted Attacks", // client deauth -> Live Scan > AP > Stations > Deauth
      {"manual",
       "karma",
@@ -182,7 +178,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      NO_ARGS,
      FOCUS_CONSOLE_END,
      SHOW_STOPSCAN_TIP,
-     MMCatWifi},
+     MMCatSpoof},
     {"Port Scan",
      {"all", "ssh", "telnet", "dns", "http", "smtp", "https", "rdp"},
      8,
@@ -315,6 +311,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
 // items[] index; s_row_count is how many rows are shown.
 static int s_row_to_flat[NUM_MENU_ITEMS];
 static int s_row_count;
+static MMMenuCategory s_render_cat; // category currently shown (WiFi..System or Spoof)
 
 static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uint32_t row) {
     furi_assert(context);
@@ -362,6 +359,12 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
+    // Marauder's Mate: drill into the AP Spoofing sub-menu (WiFi only)
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "spoofmenu") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+
     if(app->selected_tx_string &&
        strncmp("sniffpmkid", app->selected_tx_string, strlen("sniffpmkid")) == 0) {
         // sniffpmkid submenu
@@ -406,11 +409,11 @@ static void wifi_marauder_scene_start_var_list_change_callback(VariableItem* ite
     app->selected_option_index[app->selected_menu_index] = item_index;
 }
 
-void wifi_marauder_scene_start_on_enter(void* context) {
-    WifiMarauderApp* app = context;
+void wifi_marauder_render_category(WifiMarauderApp* app, MMMenuCategory cat) {
     VariableItemList* var_item_list = app->var_item_list;
-    MMMenuCategory cat = app->menu_category;
+    s_render_cat = cat; // what the enter/change/tick callbacks act on
 
+    variable_item_list_reset(var_item_list);
     variable_item_list_set_enter_callback(
         var_item_list, wifi_marauder_scene_start_var_list_enter_callback, app);
 
@@ -444,6 +447,11 @@ void wifi_marauder_scene_start_on_enter(void* context) {
         variable_item_list_set_selected_item(var_item_list, app->category_cursor[cat]);
 
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewVarItemList);
+}
+
+void wifi_marauder_scene_start_on_enter(void* context) {
+    WifiMarauderApp* app = context;
+    wifi_marauder_render_category(app, app->menu_category);
 }
 
 bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) {
@@ -493,11 +501,13 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneDeviceInfo);
+        } else if(event.event == WifiMarauderEventOpenSpoof) {
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSpoofMenu);
         }
         consumed = true;
     } else if(event.type == SceneManagerEventTypeTick) {
         int row = variable_item_list_get_selected_item_index(app->var_item_list);
-        app->category_cursor[app->menu_category] = row;
+        app->category_cursor[s_render_cat] = row; // s_render_cat: works for spoof sub-menu too
         app->selected_menu_index = (row < s_row_count) ? s_row_to_flat[row] : 0;
         consumed = true;
     }

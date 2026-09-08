@@ -396,7 +396,7 @@ bool mm_listi_parse_ip(const char* line, char* ip_out) {
     return true;
 }
 
-bool mm_pingscan_parse_ip(const char* line, char* ip_out) {
+bool mm_hostscan_parse_ip(const char* line, char* ip_out) {
     if(!line || !ip_out) return false;
     const char* p = line;
     while(*p == ' ' || *p == '\t' || *p == '>') p++; // strip prompt + indent

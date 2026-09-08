@@ -64,7 +64,13 @@ static int mm_ap_cmp(const MMScanAp* A, const MMScanAp* B) {
     return mm_ci_cmp(A->ssid, B->ssid);
 }
 
+// Log any GUI-thread operation that runs long enough to risk a ViewPort
+// lockup. Info level but very low volume (only fires past the threshold).
+#define MM_PERF_TAG "MM-PERF"
+#define MM_PERF_MS 8
+
 static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
+    uint32_t t0 = furi_get_tick();
     uint32_t sel = submenu_get_selected_item(app->submenu);
     submenu_reset(app->submenu);
 
@@ -106,6 +112,12 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
         app->submenu, "> Rescan", MM_ITEM_RESCAN, wifi_marauder_scan_live_item_cb, app);
 
     if(sel <= (uint32_t)app->scan_ap_count) submenu_set_selected_item(app->submenu, sel);
+
+    uint32_t dt = furi_get_tick() - t0;
+    if(dt >= MM_PERF_MS)
+        FURI_LOG_D(
+            MM_PERF_TAG, "rebuild n=%d sorted=%d %lums", app->scan_ap_count, sorted,
+            (unsigned long)dt);
 }
 
 // Move the cursor to the row displaying store index `store_idx`.
@@ -186,6 +198,7 @@ static void wifi_marauder_scan_live_drain(WifiMarauderApp* app) {
        app->scan_live_state == MMLiveListingClients)
         return;
 
+    uint32_t t0 = furi_get_tick();
     bool changed = false;
     int processed = 0;
     for(;;) {
@@ -204,6 +217,10 @@ static void wifi_marauder_scan_live_drain(WifiMarauderApp* app) {
     // Don't rebuild the whole submenu here (10x/s of full re-alloc stalls the
     // GUI thread and drops UART data); just mark dirty and let the tick throttle.
     if(changed) app->scan_dirty = true;
+
+    uint32_t dt = furi_get_tick() - t0;
+    if(dt >= MM_PERF_MS)
+        FURI_LOG_D(MM_PERF_TAG, "drain lines=%d %lums", processed, (unsigned long)dt);
 }
 
 static void wifi_marauder_scan_live_start(WifiMarauderApp* app) {
@@ -212,6 +229,7 @@ static void wifi_marauder_scan_live_start(WifiMarauderApp* app) {
     app->scan_live_state = MMLiveScanning;
     app->scan_live_ticks = 0;
     app->scan_dirty = false;
+    app->scan_aps_built = 0;
     app->sel_ap_prev = -1; // clearlist -a below wipes Marauder's selections
     app->sel_sta_prev = -1;
     furi_stream_buffer_reset(app->scan_stream);
@@ -291,10 +309,18 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
         wifi_marauder_scan_live_drain(app);
 
         if(app->scan_live_state == MMLiveScanning) {
-            // Throttle live submenu rebuilds to ~2/s to keep the GUI thread
-            // responsive (avoids ViewPort lockups and dropped UART data).
-            if(app->scan_dirty && (app->scan_live_ticks % 5 == 0)) {
+            // A full submenu rebuild contends with the GUI draw thread for the
+            // view-model lock (~8ms/rebuild -> ViewPort lockups), so rebuild as
+            // rarely as the UX allows. New APs restructure the list and warrant
+            // a prompt (throttled ~2/s) rebuild; station-count-only changes do
+            // not, so they get at most a slow (~3s) refresh. list -c fills the
+            // authoritative counts when the scan ends regardless.
+            bool aps_grew = app->scan_ap_count > app->scan_aps_built;
+            bool prompt = aps_grew && (app->scan_live_ticks % 5 == 0);
+            bool slow = app->scan_dirty && (app->scan_live_ticks % 30 == 0);
+            if(prompt || slow) {
                 wifi_marauder_scan_live_rebuild(app, false);
+                app->scan_aps_built = app->scan_ap_count;
                 app->scan_dirty = false;
             }
             if(++app->scan_live_ticks >= MM_LIVE_SCAN_TICKS) {
@@ -308,6 +334,7 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
             }
         } else if(app->scan_live_state == MMLiveListing) {
             if(++app->scan_live_ticks >= MM_LIVE_LIST_TICKS) {
+                uint32_t t0 = furi_get_tick();
                 wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
                 wifi_marauder_scan_live_drain(app); // flush any remaining list -a text
 
@@ -329,14 +356,25 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
                 wifi_marauder_scan_live_tx(app, "list -c\n");
                 app->scan_live_state = MMLiveListingClients;
                 app->scan_live_ticks = 0;
+
+                uint32_t dt = furi_get_tick() - t0;
+                if(dt >= MM_PERF_MS)
+                    FURI_LOG_D(
+                        MM_PERF_TAG, "resolve n=%d %lums", app->scan_ap_count,
+                        (unsigned long)dt);
             }
         } else if(app->scan_live_state == MMLiveListingClients) {
             if(++app->scan_live_ticks >= MM_LIVE_LIST_TICKS) {
+                uint32_t t0 = furi_get_tick();
                 wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
                 wifi_marauder_scan_live_drain(app); // flush remaining list -c text
                 wifi_marauder_scan_live_parse_clients(app);
                 app->scan_live_state = MMLiveReady;
-                wifi_marauder_scan_live_rebuild(app, true);
+                uint32_t dt = furi_get_tick() - t0;
+                if(dt >= MM_PERF_MS)
+                    FURI_LOG_D(
+                        MM_PERF_TAG, "parse_clients+final %lums", (unsigned long)dt);
+                wifi_marauder_scan_live_rebuild(app, true); // timed internally
             }
         }
         consumed = true;

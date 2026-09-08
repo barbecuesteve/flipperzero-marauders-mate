@@ -168,6 +168,8 @@ struct WifiMarauderApp {
     int scan_live_ticks;
     bool scan_dirty; // a new AP/client arrived; submenu needs a (throttled) rebuild
     int scan_aps_built; // scan_ap_count at the last live rebuild (rebuild only when it grows)
+    bool scan_resolve_to_detail; // resolve phase was kicked off by an AP tap -> open detail when done
+    bool scan_resume_pending; // re-entering the live view from detail -> resume scan, keep store
     MMStation scan_stations[MM_STA_MAX]; // stations seen, deduped per (AP, MAC)
     int scan_station_count;
     int sta_selected; // scan_stations[] index of the client being acted on

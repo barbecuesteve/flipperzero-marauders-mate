@@ -83,6 +83,10 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->scan_live_state = MMLiveReady; // start scene forces a fresh scan
     app->scan_live_ticks = 0;
     app->scan_station_count = 0;
+    app->scan_aps_built = 0;
+    app->scan_dirty = false;
+    app->scan_resolve_to_detail = false;
+    app->scan_resume_pending = false;
 
     app->text_input = wifi_text_input_alloc();
     view_dispatcher_add_view(

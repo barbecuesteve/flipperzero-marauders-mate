@@ -10,8 +10,7 @@
 #include "../wifi_marauder_app_i.h"
 #include <ctype.h>
 
-#define MM_LIVE_SCAN_TICKS (100) // scanall dwell (~100ms/tick -> ~10s)
-#define MM_LIVE_LIST_TICKS (15) // wait for list -a output (~1.5s)
+#define MM_LIVE_LIST_TICKS (15) // wait for each of list -a / list -c (~1.5s)
 #define MM_ITEM_RESCAN (0xFFFFFFFFu)
 
 static bool mm_mac_is_multicast(const char* mac) {
@@ -64,6 +63,8 @@ static int mm_ap_cmp(const MMScanAp* A, const MMScanAp* B) {
     return mm_ci_cmp(A->ssid, B->ssid);
 }
 
+static void wifi_marauder_scan_live_select_store(WifiMarauderApp* app, int store_idx);
+
 // Log any GUI-thread operation that runs long enough to risk a ViewPort
 // lockup. Info level but very low volume (only fires past the threshold).
 #define MM_PERF_TAG "MM-PERF"
@@ -71,7 +72,11 @@ static int mm_ap_cmp(const MMScanAp* A, const MMScanAp* B) {
 
 static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
     uint32_t t0 = furi_get_tick();
-    uint32_t sel = submenu_get_selected_item(app->submenu);
+    // Preserve the cursor by STORE index, not row: with continuous scanning the
+    // sorted order shifts as APs arrive, so a fixed row would drift to a
+    // different AP. s_order still holds the PREVIOUS build's order here.
+    uint32_t sel_row = submenu_get_selected_item(app->submenu);
+    int sel_store = (sel_row < (uint32_t)app->scan_ap_count) ? s_order[sel_row] : -1;
     submenu_reset(app->submenu);
 
     char header[48];
@@ -111,7 +116,10 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
     submenu_add_item(
         app->submenu, "> Rescan", MM_ITEM_RESCAN, wifi_marauder_scan_live_item_cb, app);
 
-    if(sel <= (uint32_t)app->scan_ap_count) submenu_set_selected_item(app->submenu, sel);
+    // Restore the cursor to the row now displaying that store index.
+    if(sel_store >= 0) {
+        wifi_marauder_scan_live_select_store(app, sel_store);
+    }
 
     uint32_t dt = furi_get_tick() - t0;
     if(dt >= MM_PERF_MS)
@@ -230,6 +238,7 @@ static void wifi_marauder_scan_live_start(WifiMarauderApp* app) {
     app->scan_live_ticks = 0;
     app->scan_dirty = false;
     app->scan_aps_built = 0;
+    app->scan_resolve_to_detail = false;
     app->sel_ap_prev = -1; // clearlist -a below wipes Marauder's selections
     app->sel_sta_prev = -1;
     furi_stream_buffer_reset(app->scan_stream);
@@ -244,6 +253,36 @@ static void wifi_marauder_scan_live_start(WifiMarauderApp* app) {
 
     wifi_marauder_scan_live_tx(app, "clearlist -a\n"); // clean slate: discovery order == index
     wifi_marauder_scan_live_tx(app, "scanall\n");
+}
+
+// Resume streaming without clearing the ESP's list or our store: scanall keeps
+// appending. Used when returning to the live view (e.g. back from detail) so
+// the list the user built up keeps growing instead of restarting.
+static void wifi_marauder_scan_live_resume(WifiMarauderApp* app) {
+    app->scan_live_state = MMLiveScanning;
+    app->scan_live_ticks = 0;
+    app->scan_dirty = false;
+    furi_stream_buffer_reset(app->scan_stream);
+    furi_string_reset(app->scan_line);
+    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_scan_live_rx_cb);
+    wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
+    wifi_marauder_scan_live_tx(app, "scanall\n");
+}
+
+// An AP was tapped: stop scanning and run the resolve phase (list -a then
+// list -c). The tick handler drives the timed states; on completion it opens
+// the detail scene because scan_resolve_to_detail is set.
+static void wifi_marauder_scan_live_begin_resolve(WifiMarauderApp* app) {
+    wifi_marauder_scan_live_tx(app, "stopscan\n");
+    furi_string_reset(app->ap_scan_buffer);
+    furi_string_reset(app->scan_line);
+    furi_stream_buffer_reset(app->scan_stream);
+    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_scan_live_rx_cb);
+    wifi_marauder_scan_live_tx(app, "list -a\n");
+    app->scan_live_state = MMLiveListing;
+    app->scan_live_ticks = 0;
+    app->scan_resolve_to_detail = true;
+    submenu_set_header(app->submenu, "Resolving...");
 }
 
 // Parse the captured `list -c` output into the station store, attaching each
@@ -285,9 +324,15 @@ void wifi_marauder_scene_scan_live_on_enter(void* context) {
     WifiMarauderApp* app = context;
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewSubmenu);
 
-    if(app->scan_live_state == MMLiveReady) {
+    // scan_resume_pending is set only when we navigate out to the detail scene,
+    // so it is true exactly when we are coming back from detail: show the
+    // accumulated list and resume scanning where we left off. Any other entry
+    // (from the menu) starts a fresh scan.
+    if(app->scan_resume_pending) {
+        app->scan_resume_pending = false;
         wifi_marauder_scan_live_rebuild(app, true);
         wifi_marauder_scan_live_select_store(app, app->scan_selected);
+        wifi_marauder_scan_live_resume(app);
     } else {
         wifi_marauder_scan_live_start(app);
     }
@@ -299,7 +344,11 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
 
     if(event.type == SceneManagerEventTypeCustom) {
         if(event.event == WifiMarauderEventScanApSelected) {
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneScanDetail);
+            // Only act on a tap while actively scanning; ignore stray taps that
+            // land during the resolve phase.
+            if(app->scan_live_state == MMLiveScanning) {
+                wifi_marauder_scan_live_begin_resolve(app);
+            }
             consumed = true;
         } else if(event.event == WifiMarauderEventScanRescan) {
             wifi_marauder_scan_live_start(app);
@@ -319,19 +368,14 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
             bool prompt = aps_grew && (app->scan_live_ticks % 5 == 0);
             bool slow = app->scan_dirty && (app->scan_live_ticks % 30 == 0);
             if(prompt || slow) {
-                wifi_marauder_scan_live_rebuild(app, false);
+                wifi_marauder_scan_live_rebuild(app, true);
                 app->scan_aps_built = app->scan_ap_count;
                 app->scan_dirty = false;
             }
-            if(++app->scan_live_ticks >= MM_LIVE_SCAN_TICKS) {
-                wifi_marauder_scan_live_tx(app, "stopscan\n");
-                furi_string_reset(app->ap_scan_buffer);
-                furi_string_reset(app->scan_line);
-                wifi_marauder_scan_live_tx(app, "list -a\n");
-                app->scan_live_state = MMLiveListing;
-                app->scan_live_ticks = 0;
-                submenu_set_header(app->submenu, "Resolving...");
-            }
+            // scanall runs continuously the whole time the user is on this view;
+            // the resolve phase is deferred to an AP tap (begin_resolve). Keep
+            // counting ticks for the rebuild throttle.
+            app->scan_live_ticks++;
         } else if(app->scan_live_state == MMLiveListing) {
             if(++app->scan_live_ticks >= MM_LIVE_LIST_TICKS) {
                 uint32_t t0 = furi_get_tick();
@@ -374,7 +418,17 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
                 if(dt >= MM_PERF_MS)
                     FURI_LOG_D(
                         MM_PERF_TAG, "parse_clients+final %lums", (unsigned long)dt);
-                wifi_marauder_scan_live_rebuild(app, true); // timed internally
+                if(app->scan_resolve_to_detail) {
+                    // The resolve was kicked off by an AP tap: open its detail.
+                    // The store must survive the round-trip so detail/sta_list
+                    // can read it; mark that our next on_enter is a resume, and
+                    // never wipe the store in on_exit.
+                    app->scan_resolve_to_detail = false;
+                    app->scan_resume_pending = true;
+                    scene_manager_next_scene(app->scene_manager, WifiMarauderSceneScanDetail);
+                } else {
+                    wifi_marauder_scan_live_rebuild(app, true); // timed internally
+                }
             }
         }
         consumed = true;
@@ -385,9 +439,12 @@ bool wifi_marauder_scene_scan_live_on_event(void* context, SceneManagerEvent eve
 
 void wifi_marauder_scene_scan_live_on_exit(void* context) {
     WifiMarauderApp* app = context;
-    if(app->scan_live_state == MMLiveScanning || app->scan_live_state == MMLiveListing) {
+    // Stop any scan/resolve still in flight, but do NOT wipe the store here: the
+    // store must survive the round-trip to detail/sta_list. Fresh-vs-resume is
+    // decided by scan_resume_pending in on_enter (start() clears the store on a
+    // fresh entry), so nothing here needs to reset counts.
+    if(app->scan_live_state != MMLiveReady) {
         wifi_marauder_scan_live_tx(app, "stopscan\n");
-        app->scan_live_state = MMLiveReady;
     }
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
     submenu_reset(app->submenu);

@@ -14,6 +14,8 @@ Marauder's Mate  [top-level: category submenu]
 │     • Connected: <ssid> / Not connected   (from join state)
 │     • Disconnect ....... stopscan -f  (only when connected)
 │     • Firmware, Version, Hardware, ESP-IDF, Station MAC, AP MAC, SD…
+│     • Re-detect ........ re-run the capability probe (updates greying)
+│     • "No Marauder detected" + Re-detect when nothing answers
 │
 ├─ WiFi
 │   ├─ Live Scan (Mate) ............... clearlist+scanall, live deduped AP list
@@ -167,10 +169,39 @@ Scan). Confirmed against the ESP32 Marauder source:
 
 - **WiFi Sniff → pmkid** (untargeted) vs AP-detail **PMKID** (targeted) — dedup. `mm-hda`
 
+## Capability detection (`mm-xdy`)
+
+On launch the category menu probes the board and greys what isn't usable
+(assume-absent, prove-present). The probe runs from `scene_categories.c`:
+
+1. **Settle** — send `stopscan` and let the reply drain (~0.4s). This idles the
+   ESP: scan/attack commands are gated behind `!scanning()`, and it also flushes
+   any dangling boot-noise line so the next command parses cleanly.
+2. **`info`** — collect ~1.5s, parse via `mm_apply_info_caps`:
+   - presence (`Firmware: Marauder`) → grey everything but Device Info if absent
+   - `SD Card: Connected/Not Connected` → grey SD items when absent
+   - `Bluetooth:`, `GPS:`, `Direct Upload:`, `Dual Band:` — **custom firmware
+     only** (added to `RunInfo`); stock firmware omits them.
+3. **BT fallback** — when `info` carries no `Bluetooth:` line (stock firmware),
+   send `stopscan` (clears the `SHOW_INFO` scan mode `info` leaves set) then
+   `sniffbt -serial`. `-serial` is required for the reply to reach the UART;
+   "Bluetooth not supported" → no BT. Accumulation is capped (a BT scan on a
+   capable board streams forever) so it can't exhaust the heap.
+
+**Greyed** rows carry a suffix and are inert: categories `(no device)` / `(no
+HW)` / `(none)`; SD-gated items `(no SD)`; Upload Wardrive `(no upload)`.
+
+SD-gated items: List SD, Save to flipper sdcard, Update, Scripts, Load Evil
+Portal HTML, Wardrive, Upload Wardrive. Upload Wardrive is *also* gated on
+Direct Upload. Dual-band is parsed and stored for the C5 but gates nothing yet.
+
+Detection is session-scoped (not persisted); **Device Info → Re-detect** re-runs
+the probe after a hotplug (board or SD card).
+
 ## Hardware notes
 
 - ESP32-S2 (current board): WiFi-only, no BT radio, 2.4 GHz only. The Bluetooth
-  section auto-greys ("no HW") after a one-shot `sniffbt` probe.
+  section auto-greys ("no HW") from the launch probe.
 - ESP32-C5 (incoming): dual-band + BLE. Planned parsed BLE/AirTag screens
   (`mm-4yo`/`mm-2ki`) will replace the raw AirTags/BT Devices items; 5 GHz
-  (`mm-cfp`).
+  (`mm-cfp`). The `Dual Band:` info line already feeds `dual_band_state`.

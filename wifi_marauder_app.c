@@ -120,6 +120,11 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->sub_category = MMCatSpoof;
     for(int i = 0; i < MMCatCount; ++i) app->category_cursor[i] = 0;
     app->bt_state = MMBtUnknown;
+    app->device_state = MMDevUnknown;
+    app->sd_state = MMCapUnknown;
+    app->gps_state = MMCapUnknown;
+    app->direct_upload_state = MMCapUnknown;
+    app->dual_band_state = MMCapUnknown;
 
     app->special_case_input_step = 0;
 
@@ -308,6 +313,39 @@ void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx) {
         snprintf(cmd, sizeof(cmd), "select -c %d\n", sta_idx);
         wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
         app->sel_sta_prev = sta_idx;
+    }
+}
+
+void mm_apply_info_caps(WifiMarauderApp* app, const char* text) {
+    // Walk an `info` reply and set device presence + SD/BT/GPS capability.
+    // Shared by the launch probe (categories) and Device Info's Re-detect.
+    bool present = false;
+    MMCap sd = MMCapUnknown, bt = MMCapUnknown, gps = MMCapUnknown;
+    MMCap upload = MMCapUnknown, dual = MMCapUnknown;
+    char line[96];
+    while(text && *text) {
+        const char* nl = strchr(text, '\n');
+        size_t len = nl ? (size_t)(nl - text) : strlen(text);
+        size_t cpy = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
+        memcpy(line, text, cpy);
+        line[cpy] = '\0';
+        if(mm_info_line_is_marauder(line)) present = true;
+        MMCap c;
+        if((c = mm_info_line_sd(line)) != MMCapUnknown) sd = c;
+        if((c = mm_info_line_bt(line)) != MMCapUnknown) bt = c;
+        if((c = mm_info_line_gps(line)) != MMCapUnknown) gps = c;
+        if((c = mm_info_line_direct_upload(line)) != MMCapUnknown) upload = c;
+        if((c = mm_info_line_dual_band(line)) != MMCapUnknown) dual = c;
+        if(!nl) break;
+        text = nl + 1;
+    }
+    app->device_state = present ? MMDevPresent : MMDevAbsent;
+    if(present) {
+        app->sd_state = sd;
+        app->gps_state = gps;
+        app->direct_upload_state = upload;
+        app->dual_band_state = dual;
+        if(bt != MMCapUnknown) app->bt_state = (bt == MMCapYes) ? MMBtYes : MMBtNo;
     }
 }
 

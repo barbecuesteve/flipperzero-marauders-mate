@@ -8,6 +8,7 @@
 #define MM_INFO_COLLECT_TICKS 15 // ~1.5s to collect the info reply
 #define MM_INFO_ROW 700
 #define MM_INFO_DISCONNECT 699 // actionable row: stopscan -f
+#define MM_INFO_REDETECT 698 // actionable row: re-run the info/capability probe
 
 // Forceful stop: ends any scan AND drops the joined network (WiFi.disconnect).
 static const char* const MM_INFO_CMD_DISCONNECT = "stopscan -f";
@@ -29,7 +30,23 @@ static void wifi_marauder_device_info_row_cb(void* context, uint32_t index) {
     WifiMarauderApp* app = context;
     if(index == MM_INFO_DISCONNECT) {
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanDisconnect);
+    } else if(index == MM_INFO_REDETECT) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventDeviceRedetect);
     }
+}
+
+// Fire off the `info` query: reset the collectors and (re)send the command.
+static void wifi_marauder_device_info_start_query(WifiMarauderApp* app) {
+    s_info_ticks = 0;
+    s_info_built = false;
+    furi_stream_buffer_reset(app->scan_stream);
+    furi_string_reset(app->scan_line);
+    furi_string_reset(app->ap_scan_buffer);
+    submenu_reset(app->submenu);
+    submenu_set_header(app->submenu, "Querying...");
+    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_device_info_rx_cb);
+    wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
+    wifi_marauder_uart_tx(app->uart, (uint8_t*)"info\n", strlen("info\n"));
 }
 
 // A displayable field line: "Key: Value". Skips the "#info" echo, the "> "
@@ -44,6 +61,19 @@ static void wifi_marauder_device_info_build(WifiMarauderApp* app) {
     Submenu* submenu = app->submenu;
     submenu_reset(submenu);
     submenu_set_header(submenu, "Device Info");
+
+    // The info reply also drives capability greying app-wide, so re-detecting
+    // here refreshes the category menu (e.g. after hotplugging the board or SD).
+    mm_apply_info_caps(app, furi_string_get_cstr(app->ap_scan_buffer));
+
+    // No board answering: the only useful action is to try again.
+    if(app->device_state != MMDevPresent) {
+        submenu_add_item(
+            submenu, "No Marauder detected", MM_INFO_ROW, wifi_marauder_device_info_noop_cb, app);
+        submenu_add_item(
+            submenu, "Re-detect", MM_INFO_REDETECT, wifi_marauder_device_info_row_cb, app);
+        return;
+    }
 
     // Our believed connection state (from the join flow) up top -- `info` itself
     // does not report whether the STA is joined to a network.
@@ -82,27 +112,15 @@ static void wifi_marauder_device_info_build(WifiMarauderApp* app) {
         if(!nl) break;
         text = nl + 1;
     }
-    if(shown == 0) {
-        submenu_add_item(
-            submenu, "No response", MM_INFO_ROW, wifi_marauder_device_info_noop_cb, app);
-    }
+    // Always offer a re-probe (handy after inserting an SD card, etc.).
+    submenu_add_item(
+        submenu, "Re-detect", MM_INFO_REDETECT, wifi_marauder_device_info_row_cb, app);
 }
 
 void wifi_marauder_scene_device_info_on_enter(void* context) {
     WifiMarauderApp* app = context;
-    s_info_ticks = 0;
-    s_info_built = false;
-    furi_stream_buffer_reset(app->scan_stream);
-    furi_string_reset(app->scan_line);
-    furi_string_reset(app->ap_scan_buffer);
-
-    submenu_reset(app->submenu);
-    submenu_set_header(app->submenu, "Querying...");
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewSubmenu);
-
-    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_device_info_rx_cb);
-    wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
-    wifi_marauder_uart_tx(app->uart, (uint8_t*)"info\n", strlen("info\n"));
+    wifi_marauder_device_info_start_query(app);
 }
 
 bool wifi_marauder_scene_device_info_on_event(void* context, SceneManagerEvent event) {
@@ -110,7 +128,10 @@ bool wifi_marauder_scene_device_info_on_event(void* context, SceneManagerEvent e
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom) {
-        if(event.event == WifiMarauderEventScanDisconnect) {
+        if(event.event == WifiMarauderEventDeviceRedetect) {
+            wifi_marauder_device_info_start_query(app); // re-probe; rebuilds on completion
+            consumed = true;
+        } else if(event.event == WifiMarauderEventScanDisconnect) {
             app->wifi_connected = false;
             app->connected_bssid[0] = '\0';
             app->connected_ssid[0] = '\0';

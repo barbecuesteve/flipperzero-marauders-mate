@@ -160,6 +160,37 @@ bool mm_join_parse_ip(const char* line, char* ip_out);
 // True if a line is Marauder's "Bluetooth not supported" reply (WiFi-only board).
 bool mm_bt_line_unsupported(const char* line);
 
+// Capability tri-state parsed from an `info` reply (launch-time detection).
+typedef enum {
+    MMCapUnknown = 0, // line said nothing conclusive
+    MMCapYes, // present / supported / connected
+    MMCapNo, // absent / not supported / not connected
+} MMCap;
+
+// Presence: true if a line marks a live Marauder (the `info` reply, which opens
+// with "Firmware: Marauder"). Any matching line proves a board is answering.
+bool mm_info_line_is_marauder(const char* line);
+
+// SD card, from info's "SD Card: Connected" / "SD Card: Not Connected".
+MMCap mm_info_line_sd(const char* line);
+
+// Bluetooth, from info's "Bluetooth: Supported" / "Bluetooth: Not Supported"
+// (custom firmware). Also treats the stock `sniffbt` "Bluetooth not supported"
+// reply as MMCapNo, so detection still works before the firmware is reflashed.
+MMCap mm_info_line_bt(const char* line);
+
+// GPS, from info's "GPS: Connected" (module present) vs "GPS: Not Connected" /
+// "GPS: Not Supported" (both -> MMCapNo: no usable GPS).
+MMCap mm_info_line_gps(const char* line);
+
+// Direct upload (wardrive -> WiGLE), from info's "Direct Upload: Supported" /
+// "Not Supported". Gates the Upload Wardrive action.
+MMCap mm_info_line_direct_upload(const char* line);
+
+// Dual-band (5 GHz) radio, from info's "Dual Band: Supported" / "Not Supported".
+// Stored for the incoming C5; not yet gating any UI.
+MMCap mm_info_line_dual_band(const char* line);
+
 typedef enum {
     MMJoinLineNone, // nothing conclusive
     MMJoinLineConnecting, // "Connecting to WiFi"

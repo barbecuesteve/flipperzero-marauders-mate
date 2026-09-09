@@ -677,6 +677,52 @@ bool mm_bt_line_unsupported(const char* line) {
            mm_ci_strstr(line, "not supported") != NULL;
 }
 
+bool mm_info_line_is_marauder(const char* line) {
+    // info opens with "Firmware: Marauder"; any line naming Marauder proves a
+    // board is answering on the UART.
+    return line && mm_ci_strstr(line, "marauder") != NULL;
+}
+
+MMCap mm_info_line_sd(const char* line) {
+    if(!line || !mm_ci_strstr(line, "sd card")) return MMCapUnknown;
+    // "SD Card: Not Connected" must beat the substring "Connected".
+    if(mm_ci_strstr(line, "not connected")) return MMCapNo;
+    if(mm_ci_strstr(line, "connected")) return MMCapYes;
+    return MMCapUnknown;
+}
+
+MMCap mm_info_line_bt(const char* line) {
+    if(!line || !mm_ci_strstr(line, "bluetooth")) return MMCapUnknown;
+    // "Not Supported" (custom info) and the stock "not supported" both mean No;
+    // check that before the plain "Supported" substring.
+    if(mm_ci_strstr(line, "not supported")) return MMCapNo;
+    if(mm_ci_strstr(line, "supported")) return MMCapYes;
+    return MMCapUnknown;
+}
+
+MMCap mm_info_line_gps(const char* line) {
+    if(!line || !mm_ci_strstr(line, "gps")) return MMCapUnknown;
+    // No usable GPS whether the module is absent or the build lacks support.
+    if(mm_ci_strstr(line, "not connected") || mm_ci_strstr(line, "not supported"))
+        return MMCapNo;
+    if(mm_ci_strstr(line, "connected")) return MMCapYes;
+    return MMCapUnknown;
+}
+
+MMCap mm_info_line_direct_upload(const char* line) {
+    if(!line || !mm_ci_strstr(line, "direct upload")) return MMCapUnknown;
+    if(mm_ci_strstr(line, "not supported")) return MMCapNo;
+    if(mm_ci_strstr(line, "supported")) return MMCapYes;
+    return MMCapUnknown;
+}
+
+MMCap mm_info_line_dual_band(const char* line) {
+    if(!line || !mm_ci_strstr(line, "dual band")) return MMCapUnknown;
+    if(mm_ci_strstr(line, "not supported")) return MMCapNo;
+    if(mm_ci_strstr(line, "supported")) return MMCapYes;
+    return MMCapUnknown;
+}
+
 MMJoinLineType mm_join_classify(const char* line) {
     if(!line) return MMJoinLineNone;
     if(mm_ci_strstr(line, "fail") || mm_ci_strstr(line, "disconnect") ||

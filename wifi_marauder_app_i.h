@@ -50,6 +50,14 @@ typedef enum {
     MMBtNo,
 } MMBtState;
 
+// Is a Marauder answering on the UART at all? Probed once per session via the
+// launch `info` query (assume-absent until a valid reply proves it present).
+typedef enum {
+    MMDevUnknown, // not yet probed
+    MMDevPresent, // info replied
+    MMDevAbsent, // no reply within the probe window
+} MMDeviceState;
+
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
 #define MM_STA_MAX (96) // total unique (AP, station) pairs kept across a scan
@@ -139,6 +147,11 @@ struct WifiMarauderApp {
     MMMenuCategory sub_category; // which WiFi sub-menu (Spoof/Air) is being opened
     int category_cursor[MMCatCount]; // remembered cursor (display row) per category
     MMBtState bt_state; // Bluetooth-hardware support, probed once per session
+    MMDeviceState device_state; // is a Marauder answering? (launch info probe)
+    MMCap sd_state; // SD card present? (from info)
+    MMCap gps_state; // GPS module usable? (from info)
+    MMCap direct_upload_state; // WiGLE direct upload supported? (from info)
+    MMCap dual_band_state; // 5 GHz radio? (from info; stored for the C5)
     const char* selected_tx_string;
     bool is_command;
     bool is_custom_tx_string;
@@ -289,6 +302,10 @@ typedef enum {
 // earlier targets. sta_idx < 0 selects the AP only. Tracks only selections
 // made through the app; selections made via the raw Select menu are the user's.
 void mm_select_target(WifiMarauderApp* app, int ap_idx, int sta_idx);
+
+// Parse an `info` reply and set app->device_state / sd_state / bt_state /
+// gps_state. Shared by the launch probe and Device Info's Re-detect.
+void mm_apply_info_caps(WifiMarauderApp* app, const char* text);
 
 // Build the main-menu VariableItemList for one category and switch to it. Shared
 // by the category renderer (scene_start) and the AP Spoofing sub-menu.

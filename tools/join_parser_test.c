@@ -109,6 +109,37 @@ int main(void) {
     CHECK(!mm_bt_line_unsupported("Starting Bluetooth sniff"), "BT-capable start line is not 'no'");
     CHECK(!mm_bt_line_unsupported("Sniffing..."), "unrelated line is not 'no'");
 
+    // --- info capability lines (launch-time detection) ----------------------
+    CHECK(mm_info_line_is_marauder("Firmware: Marauder"), "info opener marks presence");
+    CHECK(mm_info_line_is_marauder("> Firmware: Marauder"), "presence with prompt prefix");
+    CHECK(!mm_info_line_is_marauder("random garbage"), "unrelated line is not presence");
+
+    CHECK(mm_info_line_sd("SD Card: Connected") == MMCapYes, "SD connected");
+    CHECK(mm_info_line_sd("SD Card: Not Connected") == MMCapNo, "SD not connected");
+    CHECK(mm_info_line_sd("Bluetooth: Supported") == MMCapUnknown, "non-SD line -> unknown SD");
+
+    CHECK(mm_info_line_bt("Bluetooth: Supported") == MMCapYes, "BT supported");
+    CHECK(mm_info_line_bt("Bluetooth: Not Supported") == MMCapNo, "BT not supported (info)");
+    CHECK(mm_info_line_bt("Bluetooth not supported") == MMCapNo, "BT not supported (stock sniffbt)");
+    CHECK(mm_info_line_bt("SD Card: Connected") == MMCapUnknown, "non-BT line -> unknown BT");
+
+    CHECK(mm_info_line_gps("GPS: Connected") == MMCapYes, "GPS module connected");
+    CHECK(mm_info_line_gps("GPS: Not Connected") == MMCapNo, "GPS no module");
+    CHECK(mm_info_line_gps("GPS: Not Supported") == MMCapNo, "GPS not in build");
+    CHECK(mm_info_line_gps("SD Card: Connected") == MMCapUnknown, "non-GPS line -> unknown GPS");
+
+    CHECK(mm_info_line_direct_upload("Direct Upload: Supported") == MMCapYes, "direct upload yes");
+    CHECK(
+        mm_info_line_direct_upload("Direct Upload: Not Supported") == MMCapNo,
+        "direct upload no");
+    CHECK(
+        mm_info_line_direct_upload("GPS: Connected") == MMCapUnknown,
+        "non-upload line -> unknown");
+
+    CHECK(mm_info_line_dual_band("Dual Band: Supported") == MMCapYes, "dual band yes");
+    CHECK(mm_info_line_dual_band("Dual Band: Not Supported") == MMCapNo, "dual band no");
+    CHECK(mm_info_line_dual_band("Bluetooth: Supported") == MMCapUnknown, "non-band line -> unknown");
+
     if(failures == 0) {
         printf("join_parser_test: OK\n");
         return 0;

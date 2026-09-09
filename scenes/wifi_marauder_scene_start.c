@@ -246,6 +246,26 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
 static int s_row_to_flat[NUM_MENU_ITEMS];
 static int s_row_count;
 static MMMenuCategory s_render_cat; // category currently shown (WiFi..System or Spoof)
+// Persistent label storage: variable_item_list_add keeps the pointer (does not
+// copy), so a suffixed label ("... (no SD)") must outlive the build call.
+static char s_labels[NUM_MENU_ITEMS][40];
+
+// True for items that need the SD card and so are greyed when none is present.
+static bool mm_item_needs_sd(const char* name) {
+    return strcmp(name, "List SD") == 0 || strcmp(name, "Save to flipper sdcard") == 0 ||
+           strcmp(name, "Update") == 0 || strcmp(name, "Scripts") == 0 ||
+           strcmp(name, "Load Evil Portal HTML file") == 0 || strcmp(name, "Wardrive") == 0 ||
+           strcmp(name, "Upload Wardrive") == 0;
+}
+
+// If a row is greyed by a missing capability, return the label suffix naming the
+// reason; NULL means the row is live. SD takes priority (no card -> nothing works).
+static const char* mm_item_gate_suffix(WifiMarauderApp* app, const char* name) {
+    if(app->sd_state == MMCapNo && mm_item_needs_sd(name)) return " (no SD)";
+    if(app->direct_upload_state == MMCapNo && strcmp(name, "Upload Wardrive") == 0)
+        return " (no upload)";
+    return NULL;
+}
 
 static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uint32_t row) {
     furi_assert(context);
@@ -254,6 +274,9 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     if((int)row >= s_row_count) return; // e.g. the "no BT radio" placeholder
     const int index = s_row_to_flat[row]; // flat items[] index for this row
     const WifiMarauderItem* item = &items[index];
+
+    // Greyed by a missing capability: the row is shown but inert.
+    if(mm_item_gate_suffix(app, item->item_string)) return;
 
     const int selected_option_index = app->selected_option_index[index];
     furi_assert(selected_option_index < item->num_options_menu);
@@ -369,10 +392,18 @@ void wifi_marauder_render_category(WifiMarauderApp* app, MMMenuCategory cat) {
     VariableItem* item;
     for(int i = 0; i < NUM_MENU_ITEMS; ++i) {
         if(items[i].category != cat) continue;
+        const int row = s_row_count;
         s_row_to_flat[s_row_count++] = i;
+        // Annotate rows greyed by a missing capability (they become inert).
+        const char* label = items[i].item_string;
+        const char* gate = mm_item_gate_suffix(app, items[i].item_string);
+        if(gate) {
+            snprintf(s_labels[row], sizeof(s_labels[row]), "%s%s", items[i].item_string, gate);
+            label = s_labels[row];
+        }
         item = variable_item_list_add(
             var_item_list,
-            items[i].item_string,
+            label,
             items[i].num_options_menu,
             wifi_marauder_scene_start_var_list_change_callback,
             app);

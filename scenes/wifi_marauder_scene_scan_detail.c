@@ -102,11 +102,15 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     // Connected indicator (info row) when our last successful join was this AP.
     bool connected_here =
         app->wifi_connected && strcmp(app->connected_bssid, ap->bssid) == 0;
+    // Connection action, driven by status: Disconnect when we're on this AP,
+    // Join in its place when we're not (and can target it).
     if(connected_here) {
         submenu_add_item(
             submenu, "* Connected (joined)", MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(
             submenu, "Disconnect", MM_D_DISCONNECT, wifi_marauder_scan_detail_item_cb, app);
+    } else if(targetable) {
+        submenu_add_item(submenu, "Join", MM_D_JOIN, wifi_marauder_scan_detail_item_cb, app);
     }
 
     char line[40];
@@ -121,9 +125,8 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     if(targetable) {
         submenu_add_item(
             submenu, "Fox Hunt", MM_D_FOXHUNT, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "Join (L3)", MM_D_JOIN, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(
-            submenu, "Host Scan (L3)", MM_D_HOSTS, wifi_marauder_scan_detail_item_cb, app);
+            submenu, "ARP Scan", MM_D_HOSTS, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(
             submenu, "Attacks", MM_D_ATTACKS, wifi_marauder_scan_detail_item_cb, app);
     } else {

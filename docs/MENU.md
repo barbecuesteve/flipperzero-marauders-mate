@@ -20,9 +20,11 @@ Marauder's Mate  [top-level: category submenu]
 ├─ WiFi
 │   ├─ Live Scan (Mate) ............... clearlist+scanall, live deduped AP list
 │   │     └─ [select AP] → AP Detail (Mate)
+│   │           • * Connected (joined) + Disconnect (stopscan -f)  when on this AP
+│   │           • Join ............... in lieu of Disconnect when not on this AP
+│   │           │     └─ auto-join networks.txt OR keyboard
+│   │           │           └─ "Save for later?" → Join result (Mate)
 │   │           • CH / RSSI / BSSID  (info rows)
-│   │           • * Connected (joined)   (if this is the joined AP)
-│   │           ├─ Disconnect ......... stopscan -f  (only when connected here)
 │   │           ├─ Stations (N) → station list (Mate)
 │   │           │     └─ [select client] → Station Detail  (targeted, -c)
 │   │           │           ├─ Deauth ............ attack -t deauth -c
@@ -30,9 +32,7 @@ Marauder's Mate  [top-level: category submenu]
 │   │           │           ├─ Sleep ............. attack -t sleep -c
 │   │           │           └─ Fox Hunt .......... foxhunt -s (RSSI meter, Mate)
 │   │           ├─ Fox Hunt ........... foxhunt -w (RSSI meter, Mate)
-│   │           ├─ Join (L3) ......... auto-join networks.txt OR keyboard
-│   │           │     └─ "Save for later?" → Join result (Connecting/Connected/Failed) (Mate)
-│   │           ├─ Host Scan (L3) .... arpscan, live host IPs (Mate)
+│   │           ├─ ARP Scan .......... arpscan, live host IPs (Mate)
 │   │           │     └─ [select host] → Port Scan (Mate)
 │   │           │           • open ports + service names, live progress
 │   │           └─ Attacks ▸ → AP attack sub-menu (Mate)  [all target this AP]
@@ -106,10 +106,10 @@ Marauder's Mate  [top-level: category submenu]
 ## Parsed (Mate) scenes
 
 Device Info, Live Scan, AP Detail, AP Attacks, Station List, Station Detail,
-Fox Hunt, Join result, Host Scan, Port Scan, Beacon Mon, Probe Mon — plus the
+Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon — plus the
 category submenu and the shared per-category / AP-Spoofing renderer.
 
-The L3 chain hangs entirely off **Live Scan → AP**: Join → Host Scan → Port Scan.
+The L3 chain hangs entirely off **Live Scan → AP**: Join → ARP Scan → Port Scan.
 The four WiFi sub-menus (AP Spoofing, Air Attacks, Detect, Capture) share one
 renderer (`wifi_marauder_render_category` on `app->sub_category`), each opened by
 a sentinel row (`spoofmenu` / `airmenu` / `detectmenu` / `capturemenu`).

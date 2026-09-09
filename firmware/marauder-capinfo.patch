@@ -1,0 +1,69 @@
+diff --git a/esp32_marauder/WiFiScan.cpp b/esp32_marauder/WiFiScan.cpp
+index d0b6bc7..c6d888e 100644
+--- a/esp32_marauder/WiFiScan.cpp
++++ b/esp32_marauder/WiFiScan.cpp
+@@ -4616,6 +4616,64 @@ void WiFiScan::RunInfo() {
+     }
+   #endif
+ 
++  // Capability lines for host-side clients (e.g. Marauder's Mate): a single
++  // machine-readable Supported/Not Supported (BT) and Connected/Not Connected/
++  // Not Supported (GPS), so a host can gate its UI from one `info` query.
++  #ifdef HAS_BT
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Bluetooth: Supported");
++    #endif
++    Serial.println("Bluetooth: Supported");
++  #else
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Bluetooth: Not Supported");
++    #endif
++    Serial.println("Bluetooth: Not Supported");
++  #endif
++
++  #ifdef HAS_GPS
++    if (gps_obj.getGpsModuleStatus()) {
++      #ifdef HAS_SCREEN
++        display_obj.tft.println("GPS: Connected");
++      #endif
++      Serial.println("GPS: Connected");
++    } else {
++      #ifdef HAS_SCREEN
++        display_obj.tft.println("GPS: Not Connected");
++      #endif
++      Serial.println("GPS: Not Connected");
++    }
++  #else
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("GPS: Not Supported");
++    #endif
++    Serial.println("GPS: Not Supported");
++  #endif
++
++  #ifdef HAS_DIRECT_UPLOAD
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Direct Upload: Supported");
++    #endif
++    Serial.println("Direct Upload: Supported");
++  #else
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Direct Upload: Not Supported");
++    #endif
++    Serial.println("Direct Upload: Not Supported");
++  #endif
++
++  #ifdef HAS_DUAL_BAND
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Dual Band: Supported");
++    #endif
++    Serial.println("Dual Band: Supported");
++  #else
++    #ifdef HAS_SCREEN
++      display_obj.tft.println("Dual Band: Not Supported");
++    #endif
++    Serial.println("Dual Band: Not Supported");
++  #endif
++
+   #ifdef HAS_BATTERY
+     battery_obj.battery_level = battery_obj.getBatteryLevel();
+     if (battery_obj.i2c_supported) {

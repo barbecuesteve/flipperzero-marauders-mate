@@ -1,14 +1,14 @@
-// Marauder's Mate: "AP Spoofing" sub-menu (reached from WiFi).
+// Marauder's Mate: generic WiFi sub-menu (AP Spoofing / Air Attacks).
 //
-// A second level under WiFi grouping the rogue-AP tools: Evil Portal, Load
-// Evil Portal HTML, Beacon Spam, Spoof SSIDs (the SSID list they broadcast),
-// and Set AP MAC. It reuses the shared category renderer and scene_start's
-// event routing, so item behavior (keyboard/console) is identical.
+// A second level under WiFi. app->sub_category selects which group to render
+// (MMCatSpoof: Evil Portal / beacon / SSID list / AP MAC; MMCatAir: broadcast
+// attacks). Reuses the shared category renderer and scene_start's event
+// routing, so item behavior (keyboard/console) is identical.
 #include "../wifi_marauder_app_i.h"
 
 void wifi_marauder_scene_spoof_menu_on_enter(void* context) {
     WifiMarauderApp* app = context;
-    wifi_marauder_render_category(app, MMCatSpoof);
+    wifi_marauder_render_category(app, app->sub_category);
 }
 
 bool wifi_marauder_scene_spoof_menu_on_event(void* context, SceneManagerEvent event) {

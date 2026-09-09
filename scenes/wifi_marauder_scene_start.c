@@ -38,6 +38,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      NO_TIP,
      MMCatSpoof},
     {"View SSIDs", {""}, 1, {"list -s"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatSpoof},
+    {"Clear SSIDs", {""}, 1, {"clearlist -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSpoof},
     {"AirTags", {""}, 1, {"list -t"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
     {"BT Devices", {""}, 1, {"list -b"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
     {"Select",
@@ -65,38 +66,21 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      NO_TIP,
      MMCatSpoof},
-    {"Join WiFi", // "new" (join -a -p) is now Live Scan > AP > Join (L3); keep saved-reconnect
-     {"saved"},
-     1,
-     {"join -s"},
-     INPUT_ARGS,
-     FOCUS_CONSOLE_END,
-     NO_TIP,
-     MMCatWifi},
-    {"Clear List",
-     {"ap", "ssid", "station"},
-     3,
-     {"clearlist -a", "clearlist -s", "clearlist -c"},
-     NO_ARGS,
-     FOCUS_CONSOLE_END,
-     NO_TIP,
-     MMCatWifi},
-    {"WiFi Attack",
-     {"deauth", "probe", "rickroll", "funny", "badmsg", "sleep", "sae flood", "csa", "quiet"},
-     9,
-     {"attack -t deauth",
-      "attack -t probe",
-      "attack -t rickroll",
-      "attack -t funny",
-      "attack -t badmsg",
-      "attack -t sleep",
-      "attack -t sae",
-      "attack -t csa",
-      "attack -t quiet"},
-     NO_ARGS,
-     FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP,
-     MMCatWifi},
+    // AP-targeted attacks (deauth/CSA/quiet) live on the AP detail screen;
+    // client-targeted (deauth/badmsg/sleep -c) on the station detail screen.
+    // These are the untargeted/broadcast attacks -- their own sub-menu.
+    {"Air Attacks", {""}, 1, {"airmenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Probe Spam", {""}, 1, {"attack -t probe"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatAir},
+    {"Rickroll Beacons", {""}, 1, {"attack -t rickroll"}, NO_ARGS, FOCUS_CONSOLE_END,
+     SHOW_STOPSCAN_TIP, MMCatAir},
+    {"Funny SSIDs", {""}, 1, {"attack -t funny"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatAir},
+    {"SAE Flood", {""}, 1, {"attack -t sae"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatAir},
+    {"Karma", {""}, 1, {"karma -p"}, INPUT_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP, MMCatAir},
+    {"Manual Deauth", {""}, 1, {"attack -t deauth -s"}, INPUT_ARGS, FOCUS_CONSOLE_END,
+     SHOW_STOPSCAN_TIP, MMCatAir},
     {"BT Spam",
      {"sour apple",
       "apple juice",
@@ -157,20 +141,6 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      NO_TIP,
      MMCatSpoof},
-    {"Targeted Attacks", // client deauth -> Live Scan > AP > Stations > Deauth
-     {"manual",
-      "karma",
-      "badmsg",
-      "sleep"},
-     4,
-     {"attack -t deauth -s",
-      "karma -p",
-      "attack -t badmsg -c",
-      "attack -t sleep -c"},
-     INPUT_ARGS,
-     FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP,
-     MMCatWifi},
     {"Beacon Spam",
      {"ap list", "ssid list", "random"},
      3,
@@ -344,8 +314,14 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
-    // Marauder's Mate: drill into the AP Spoofing sub-menu (WiFi only)
+    // Marauder's Mate: drill into a WiFi sub-menu (AP Spoofing / Air Attacks)
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "spoofmenu") == 0) {
+        app->sub_category = MMCatSpoof;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "airmenu") == 0) {
+        app->sub_category = MMCatAir;
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
         return;
     }

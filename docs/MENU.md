@@ -20,8 +20,10 @@ Marauder's Mate  [top-level: category submenu]
 │   │           • CH / RSSI / BSSID  (info rows)
 │   │           • * Connected (joined)   (if this is the joined AP)
 │   │           ├─ Stations (N) → station list (Mate)
-│   │           │     └─ [select client] → Station Detail
-│   │           │           ├─ Deauth ............ select AP+sta, attack -t deauth -c
+│   │           │     └─ [select client] → Station Detail  (targeted, -c)
+│   │           │           ├─ Deauth ............ attack -t deauth -c
+│   │           │           ├─ Bad Msg ........... attack -t badmsg -c
+│   │           │           ├─ Sleep ............. attack -t sleep -c
 │   │           │           └─ Fox Hunt .......... foxhunt -s (RSSI meter, Mate)
 │   │           ├─ Fox Hunt ........... foxhunt -w (RSSI meter, Mate)
 │   │           ├─ Join (L3) ......... auto-join networks.txt OR keyboard
@@ -29,7 +31,9 @@ Marauder's Mate  [top-level: category submenu]
 │   │           ├─ Host Scan (L3) .... arpscan, live host IPs (Mate)
 │   │           │     └─ [select host] → Port Scan (Mate)
 │   │           │           • open ports + service names, live progress
-│   │           ├─ Deauth ............ attack -t deauth
+│   │           ├─ Deauth ............ attack -t deauth   (this AP)
+│   │           ├─ CSA ............... attack -t csa      (impersonate this AP)
+│   │           ├─ Quiet ............. attack -t quiet    (impersonate this AP)
 │   │           ├─ Sniff ............. sniffraw
 │   │           └─ PMKID ............. sniffpmkid
 │   ├─ Beacon Mon (Mate) ............. sniffbeacon → APs by beacon count
@@ -37,21 +41,27 @@ Marauder's Mate  [top-level: category submenu]
 │   ├─ Select .............. select -a/-s/-c   [keyboard]
 │   ├─ Set STA MAC ......... randstamac / clonestamac -s
 │   ├─ AP Spoofing ▸  → sub-menu (see below)
-│   ├─ Join WiFi ........... join -s  (saved creds)   [keyboard]
-│   ├─ Clear List .......... clearlist -a/-s/-c
-│   ├─ WiFi Attack ......... deauth/probe/rickroll/funny/badmsg/sleep/sae/csa/quiet
-│   ├─ Targeted Attacks .... attack -t deauth -s / karma -p / badmsg -c / sleep -c  [keyboard]
+│   ├─ Air Attacks ▸  → sub-menu (see below)
 │   ├─ WiFi Sniff .......... deauth/pmkid/pwn/raw/mactrack/packetcount/pineapple/multissid/sae
 │   ├─ Channel ............. channel (get) / channel -s (set)
 │   └─ Shutdown WiFi ....... stopscan -f
 │
-│   └─ AP Spoofing  [WiFi → sub-menu]
-│         ├─ Spoof SSIDs ...... ssid -a -g / -a -n / -r   [keyboard]  (the broadcast list)
-│         ├─ View SSIDs ....... list -s
-│         ├─ Set AP MAC ....... randapmac / cloneapmac -a
-│         ├─ Evil Portal ...... evilportal -c start / sethtml / setap
-│         ├─ Load Evil Portal HTML file … evilportal -c sethtmlstr
-│         └─ Beacon Spam ...... attack -t beacon -a / -l / -r
+│   ├─ AP Spoofing  [WiFi → sub-menu]
+│   │     ├─ Spoof SSIDs ...... ssid -a -g / -a -n / -r   [keyboard]  (the broadcast list)
+│   │     ├─ View SSIDs ....... list -s
+│   │     ├─ Clear SSIDs ...... clearlist -s
+│   │     ├─ Set AP MAC ....... randapmac / cloneapmac -a
+│   │     ├─ Evil Portal ...... evilportal -c start / sethtml / setap
+│   │     ├─ Load Evil Portal HTML file … evilportal -c sethtmlstr
+│   │     └─ Beacon Spam ...... attack -t beacon -a / -l / -r
+│   │
+│   └─ Air Attacks  [WiFi → sub-menu; untargeted / broadcast]
+│         ├─ Probe Spam ....... attack -t probe
+│         ├─ Rickroll Beacons . attack -t rickroll
+│         ├─ Funny SSIDs ...... attack -t funny
+│         ├─ SAE Flood ........ attack -t sae
+│         ├─ Karma ............ karma -p   [keyboard]
+│         └─ Manual Deauth .... attack -t deauth -s   [keyboard: src/dst MAC]
 │
 ├─ Bluetooth   [greyed "(no HW)" on ESP32-S2; probed via sniffbt]
 │   ├─ AirTags ............. list -t          ← (C5: → parsed AirTag list, mm-2ki)
@@ -87,6 +97,20 @@ Join result, Host Scan, Port Scan, Beacon Mon, Probe Mon — plus the category
 submenu and the shared per-category / AP-Spoofing renderer.
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → Host Scan → Port Scan.
+The two WiFi sub-menus (AP Spoofing, Air Attacks) share one renderer
+(`wifi_marauder_render_category` on `app->sub_category`).
+
+## Attack placement (by target level)
+
+Each attack lives where its target is chosen (none are L3/host — those are Port
+Scan). Confirmed against the ESP32 Marauder source:
+
+- **Selected AP** (needs a chosen AP → **AP Detail**): `deauth` (requires
+  `select`, `filterActive()`), `csa`, `quiet` (impersonate that AP's BSSID).
+- **Selected station** (needs a chosen client → **Station Detail**, all `-c`):
+  `deauth -c`, `badmsg -c`, `sleep -c`.
+- **Untargeted / broadcast** (launch-and-go → **Air Attacks**): `probe`,
+  `rickroll`, `funny`, `sae`, `karma`, and manual (`deauth -s <mac>`).
 
 ## Known redundancies (tracked)
 

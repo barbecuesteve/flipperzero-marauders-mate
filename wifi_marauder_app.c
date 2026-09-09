@@ -117,6 +117,7 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
 
     // Protocol-category menu state
     app->menu_category = MMCatWifi;
+    app->sub_category = MMCatSpoof;
     for(int i = 0; i < MMCatCount; ++i) app->category_cursor[i] = 0;
     app->bt_state = MMBtUnknown;
 

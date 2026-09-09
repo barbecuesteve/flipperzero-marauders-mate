@@ -47,11 +47,15 @@ enum {
     MM_D_DEAUTH,
     MM_D_SNIFF,
     MM_D_PMKID,
+    MM_D_CSA,
+    MM_D_QUIET,
 };
 
 static const char* const MM_CMD_DEAUTH = "attack -t deauth";
 static const char* const MM_CMD_SNIFF = "sniffraw";
 static const char* const MM_CMD_PMKID = "sniffpmkid";
+static const char* const MM_CMD_CSA = "attack -t csa";
+static const char* const MM_CMD_QUIET = "attack -t quiet";
 
 static void wifi_marauder_scan_detail_item_cb(void* context, uint32_t index) {
     WifiMarauderApp* app = context;
@@ -78,6 +82,14 @@ static void wifi_marauder_scan_detail_item_cb(void* context, uint32_t index) {
         break;
     case MM_D_PMKID:
         app->ap_action = MMApActionPmkid;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
+        break;
+    case MM_D_CSA:
+        app->ap_action = MMApActionCsa;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
+        break;
+    case MM_D_QUIET:
+        app->ap_action = MMApActionQuiet;
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
         break;
     default:
@@ -131,6 +143,8 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
         submenu_add_item(
             submenu, "Host Scan (L3)", MM_D_HOSTS, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(submenu, "Deauth", MM_D_DEAUTH, wifi_marauder_scan_detail_item_cb, app);
+        submenu_add_item(submenu, "CSA", MM_D_CSA, wifi_marauder_scan_detail_item_cb, app);
+        submenu_add_item(submenu, "Quiet", MM_D_QUIET, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(submenu, "Sniff", MM_D_SNIFF, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(submenu, "PMKID", MM_D_PMKID, wifi_marauder_scan_detail_item_cb, app);
     } else {
@@ -228,6 +242,12 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
                 break;
             case MMApActionPmkid:
                 app->selected_tx_string = MM_CMD_PMKID;
+                break;
+            case MMApActionCsa:
+                app->selected_tx_string = MM_CMD_CSA;
+                break;
+            case MMApActionQuiet:
+                app->selected_tx_string = MM_CMD_QUIET;
                 break;
             default:
                 app->selected_tx_string = MM_CMD_DEAUTH;

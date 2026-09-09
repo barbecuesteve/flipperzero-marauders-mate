@@ -28,7 +28,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (39)
+#define NUM_MENU_ITEMS (43)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {
@@ -37,6 +37,7 @@ typedef enum {
     MMCatGps,
     MMCatSystem,
     MMCatSpoof, // sub-section of WiFi (Evil Portal / beacon / SSID list / AP MAC)
+    MMCatAir, // sub-section of WiFi (untargeted/broadcast attacks)
     MMCatCount,
 } MMMenuCategory;
 
@@ -61,6 +62,8 @@ typedef enum {
     MMApActionDeauth,
     MMApActionSniff,
     MMApActionPmkid,
+    MMApActionCsa, // channel-switch announcement (impersonates the selected AP)
+    MMApActionQuiet, // quiet-time attack (impersonates the selected AP)
 } MMApAction;
 
 typedef enum {
@@ -139,6 +142,7 @@ struct WifiMarauderApp {
     int selected_option_index[NUM_MENU_ITEMS];
     // Protocol-category menu state
     MMMenuCategory menu_category; // category the per-category renderer shows
+    MMMenuCategory sub_category; // which WiFi sub-menu (Spoof/Air) is being opened
     int category_cursor[MMCatCount]; // remembered cursor (display row) per category
     MMBtState bt_state; // Bluetooth-hardware support, probed once per session
     const char* selected_tx_string;

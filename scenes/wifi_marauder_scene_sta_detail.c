@@ -11,14 +11,25 @@
 enum {
     MM_SD_INFO = 900,
     MM_SD_DEAUTH,
+    MM_SD_BADMSG,
+    MM_SD_SLEEP,
     MM_SD_FOXHUNT,
 };
 
-static const char* const MM_CMD_DEAUTH_C = "attack -t deauth -c";
+// The targeted client attacks: all "-c" (Marauder only hits a station whose AP
+// is also selected). s_sta_cmd is the one chosen, run via the shared path.
+static const char* s_sta_cmd;
 
 static void wifi_marauder_sta_detail_item_cb(void* context, uint32_t index) {
     WifiMarauderApp* app = context;
     if(index == MM_SD_DEAUTH) {
+        s_sta_cmd = "attack -t deauth -c";
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaDeauth);
+    } else if(index == MM_SD_BADMSG) {
+        s_sta_cmd = "attack -t badmsg -c";
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaDeauth);
+    } else if(index == MM_SD_SLEEP) {
+        s_sta_cmd = "attack -t sleep -c";
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaDeauth);
     } else if(index == MM_SD_FOXHUNT) {
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStaFoxHunt);
@@ -47,6 +58,8 @@ void wifi_marauder_scene_sta_detail_on_enter(void* context) {
     submenu_set_header(submenu, st->mac);
     if(targetable) {
         submenu_add_item(submenu, "Deauth", MM_SD_DEAUTH, wifi_marauder_sta_detail_item_cb, app);
+        submenu_add_item(submenu, "Bad Msg", MM_SD_BADMSG, wifi_marauder_sta_detail_item_cb, app);
+        submenu_add_item(submenu, "Sleep", MM_SD_SLEEP, wifi_marauder_sta_detail_item_cb, app);
         submenu_add_item(
             submenu, "Fox Hunt", MM_SD_FOXHUNT, wifi_marauder_sta_detail_item_cb, app);
     } else {
@@ -68,11 +81,11 @@ bool wifi_marauder_scene_sta_detail_on_event(void* context, SceneManagerEvent ev
     if(st->sel_index < 0 || ap_resolved < 0) return true; // can't target cleanly
 
     if(event.event == WifiMarauderEventStaDeauth) {
-        // Targeted client deauth needs both the AP and the station selected;
+        // Targeted client attack needs both the AP and the station selected;
         // clear any prior selection so only this client is hit.
         mm_select_target(app, ap_resolved, st->sel_index);
 
-        app->selected_tx_string = MM_CMD_DEAUTH_C;
+        app->selected_tx_string = s_sta_cmd ? s_sta_cmd : "attack -t deauth -c";
         app->is_command = true;
         app->is_custom_tx_string = false;
         app->focus_console_start = false;

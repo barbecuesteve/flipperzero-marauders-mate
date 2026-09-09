@@ -93,26 +93,42 @@ Marauder's Mate  [top-level: category submenu]
 │   └─ GPS POI ............. gpspoi -s/-m/-e
 │
 └─ System
-    ├─ LED ................. led -s / led -p   [keyboard]
-    ├─ Settings ............ settings / -r / -s <toggle×6>
-    ├─ List SD ............. ls /   [keyboard]
-    ├─ Update .............. update -s
-    ├─ Reboot .............. reboot
-    ├─ Help ................ help
-    ├─ Scripts ............. → script select/edit
-    └─ Save to flipper sdcard → settings-init
+    ├─ LED (Mate) ......... colour picker → led -s #RRGGBB / led -p rainbow
+    ├─ Settings (Mate) .... live toggle screen (see below)
+    ├─ SD Card ▸  → sub-menu (see below)
+    ├─ Reboot (Mate) ...... Cancel / Reboot confirm → reboot
+    ├─ Help ............... help
+    └─ Scripts ............ → script select/edit
+│
+    └─ SD Card  [System → sub-menu; greyed when no card]
+          ├─ List SD ...... ls /   [keyboard]
+          └─ Update ....... update -s
+
+Settings (Mate): reads the ESP `settings` on entry and shows the six booleans
+(ForcePMKID, ForceProbe, SavePCAP, EnableLED, EPDeauth, ChanHop) as live On/Off
+toggles (flip → `settings -s <name> enable|disable`), plus the two Flipper-side
+capture prefs (save pcaps / logs to the Flipper SD). Actions: Save profile→Flipper
+(writes the six booleans to MM_SETTINGS_PROFILE_FILEPATH), Load profile←Flipper
+(re-applies them to the ESP), Restore defaults (`settings -r`). The old
+"Save to flipper sdcard" (settings-init) is retired; its capture prefs live here.
+
+LED colours are 8-solid on the Flipper dev board's 3-GPIO RGB (needs a firmware
+change to drive it — mm-82m); works natively on neopixel boards / the C5.
 ```
 
 ## Parsed (Mate) scenes
 
 Device Info, Live Scan, AP Detail, AP Attacks, Station List, Station Detail,
-Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon — plus the
-category submenu and the shared per-category / AP-Spoofing renderer.
+Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon, LED picker,
+Settings, Reboot confirm — plus the category submenu and the shared
+per-category / AP-Spoofing renderer (now also used by the SD Card sub-menu).
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → ARP Scan → Port Scan.
-The four WiFi sub-menus (AP Spoofing, Air Attacks, Detect, Capture) share one
-renderer (`wifi_marauder_render_category` on `app->sub_category`), each opened by
-a sentinel row (`spoofmenu` / `airmenu` / `detectmenu` / `capturemenu`).
+Five sub-menus (WiFi's AP Spoofing, Air Attacks, Detect, Capture; System's SD
+Card) share one renderer (`wifi_marauder_render_category` on `app->sub_category`),
+each opened by a sentinel row (`spoofmenu` / `airmenu` / `detectmenu` /
+`capturemenu` / `sdmenu`). LED / Settings / Reboot open their own scenes via
+`ledpicker` / `settingsui` / `rebootconfirm` sentinels.
 
 Sniffing is split by intent: **Detect** (defensive — deauth frames, rogue APs,
 Pineapple, Pwnagotchi) vs **Capture** (offensive handshake/frame grab — PMKID,

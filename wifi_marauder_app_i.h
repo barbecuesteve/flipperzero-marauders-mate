@@ -40,6 +40,7 @@ typedef enum {
     MMCatAir, // sub-section of WiFi (untargeted/broadcast attacks)
     MMCatDetect, // sub-section of WiFi (defensive: spot attacks/attack gear nearby)
     MMCatCapture, // sub-section of WiFi (offensive: handshake/frame capture)
+    MMCatSD, // sub-section of System (SD card: List SD, Update)
     MMCatCount,
 } MMMenuCategory;
 
@@ -103,6 +104,8 @@ typedef enum {
 // card (unencrypted, removable) -- user's own networks, user's own risk. Never
 // committed; a networks.txt.example ships with placeholders only.
 #define MM_NETWORKS_FILEPATH MARAUDER_APP_FOLDER "/networks.txt"
+// Saved ESP settings profile (the boolean toggles) for restore-to-board.
+#define MM_SETTINGS_PROFILE_FILEPATH MARAUDER_APP_FOLDER "/settings_profile"
 
 typedef enum WifiMarauderUserInputType {
     WifiMarauderUserInputTypeString,

@@ -171,14 +171,7 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      SHOW_STOPSCAN_TIP,
      MMCatBluetooth},
-    {"LED",
-     {"hex", "pattern"},
-     2,
-     {"led -s", "led -p"},
-     INPUT_ARGS,
-     FOCUS_CONSOLE_END,
-     NO_TIP,
-     MMCatSystem},
+    {"LED", {""}, 1, {"ledpicker"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"GPS Data",
      {"tracker", "stream", "fix", "sats", "lat", "lon", "alt", "date", "accuracy", "text", "nmea"},
      11,
@@ -206,38 +199,17 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      NO_TIP,
      MMCatGps},
-    {"Settings",
-     {"display", "restore", "ForcePMKID", "ForceProbe", "SavePCAP", "EnableLED", "EPDeauth", "other"},
-     8,
-     {"settings",
-      "settings -r",
-      "settings -s ForcePMKID enable",
-      "settings -s ForceProbe enable",
-      "settings -s SavePCAP enable",
-      "settings -s EnableLED enable",
-      "settings -s EPDeauth enable",
-      "settings -s"},
-     TOGGLE_ARGS,
-     FOCUS_CONSOLE_START,
-     NO_TIP,
-     MMCatSystem},
+    {"Settings", {""}, 1, {"settingsui"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     // Plain stop: ends the current scan/attack but keeps any joined network.
     // The forceful variant (stopscan -f, which also disconnects) is offered as
     // "Disconnect" next to the connected indicator on AP Detail / Device Info.
     {"Stop", {""}, 1, {"stopscan"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatWifi},
-    {"List SD", {""}, 1, {"ls /"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
-    {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
-    {"Reboot", {""}, 1, {"reboot"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"SD Card", {""}, 1, {"sdmenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
+    {"List SD", {""}, 1, {"ls /"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSD},
+    {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSD},
+    {"Reboot", {""}, 1, {"rebootconfirm"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP, MMCatSystem},
     {"Scripts", {""}, 1, {""}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
-    {"Save to flipper sdcard",
-     {""},
-     1,
-     {""},
-     NO_ARGS,
-     FOCUS_CONSOLE_START,
-     NO_TIP,
-     MMCatSystem},
 };
 
 // Category renderer: the var list shows only items whose category matches
@@ -252,10 +224,9 @@ static char s_labels[NUM_MENU_ITEMS][40];
 
 // True for items that need the SD card and so are greyed when none is present.
 static bool mm_item_needs_sd(const char* name) {
-    return strcmp(name, "List SD") == 0 || strcmp(name, "Save to flipper sdcard") == 0 ||
-           strcmp(name, "Update") == 0 || strcmp(name, "Scripts") == 0 ||
-           strcmp(name, "Load Evil Portal HTML file") == 0 || strcmp(name, "Wardrive") == 0 ||
-           strcmp(name, "Upload Wardrive") == 0;
+    return strcmp(name, "List SD") == 0 || strcmp(name, "Update") == 0 ||
+           strcmp(name, "Scripts") == 0 || strcmp(name, "Load Evil Portal HTML file") == 0 ||
+           strcmp(name, "Wardrive") == 0 || strcmp(name, "Upload Wardrive") == 0;
 }
 
 // If a row is greyed by a missing capability, return the label suffix naming the
@@ -324,6 +295,23 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "capturemenu") == 0) {
         app->sub_category = MMCatCapture;
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "sdmenu") == 0) {
+        app->sub_category = MMCatSD;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "ledpicker") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenLedPicker);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "rebootconfirm") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenRebootConfirm);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "settingsui") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSettingsMenu);
         return;
     }
 
@@ -442,6 +430,18 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSettingsInit);
+        } else if(event.event == WifiMarauderEventOpenLedPicker) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneLedPicker);
+        } else if(event.event == WifiMarauderEventOpenRebootConfirm) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneRebootConfirm);
+        } else if(event.event == WifiMarauderEventOpenSettingsMenu) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSettingsMenu);
         } else if(event.event == WifiMarauderEventStartScriptSelect) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

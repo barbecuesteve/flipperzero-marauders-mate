@@ -41,14 +41,6 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Clear SSIDs", {""}, 1, {"clearlist -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSpoof},
     {"AirTags", {""}, 1, {"list -t"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
     {"BT Devices", {""}, 1, {"list -b"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
-    {"Select",
-     {"ap", "ssid", "station"},
-     3,
-     {"select -a", "select -s", "select -c"},
-     INPUT_ARGS,
-     FOCUS_CONSOLE_END,
-     NO_TIP,
-     MMCatWifi},
     {"Set STA MAC",
      {"rand", "clone"},
      2,
@@ -149,22 +141,23 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      SHOW_STOPSCAN_TIP,
      MMCatSpoof},
-    {"WiFi Sniff",
-     {"deauth", "pmkid", "pwn", "raw", "mactrack", "packetcount", "pineapple", "multissid", "sae"},
-     9,
-     {"sniffdeauth",
-      "sniffpmkid",
-      "sniffpwn",
-      "sniffraw",
-      "mactrack",
-      "packetcount",
-      "sniffpinescan",
-      "sniffmultissid",
-      "sniffsae"},
-     NO_ARGS,
-     FOCUS_CONSOLE_END,
-     SHOW_STOPSCAN_TIP,
-     MMCatWifi},
+    // Sniffing split by intent: Detect (defensive -- is someone attacking, or
+    // is there attack gear nearby?) vs Capture (offensive -- grab handshakes/
+    // frames for offline work). Both are WiFi sub-menus (see render_category).
+    {"Detect", {""}, 1, {"detectmenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Deauth Frames", {""}, 1, {"sniffdeauth"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatDetect},
+    {"Rogue APs", {""}, 1, {"sniffmultissid"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatDetect},
+    {"Pineapple", {""}, 1, {"sniffpinescan"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatDetect},
+    {"Pwnagotchi", {""}, 1, {"sniffpwn"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatDetect},
+    {"Capture", {""}, 1, {"capturemenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"PMKID", {""}, 1, {"sniffpmkid"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP, MMCatCapture},
+    {"SAE (WPA3)", {""}, 1, {"sniffsae"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
+     MMCatCapture},
+    {"Raw", {""}, 1, {"sniffraw"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP, MMCatCapture},
     {"BT Sniff",
      {"bt", "skim", "airtag", "flipper", "flock", "meta"},
      6,
@@ -178,14 +171,6 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_END,
      SHOW_STOPSCAN_TIP,
      MMCatBluetooth},
-    {"Channel",
-     {"get", "set"},
-     2,
-     {"channel", "channel -s"},
-     TOGGLE_ARGS,
-     FOCUS_CONSOLE_END,
-     NO_TIP,
-     MMCatWifi},
     {"LED",
      {"hex", "pattern"},
      2,
@@ -236,7 +221,10 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
      FOCUS_CONSOLE_START,
      NO_TIP,
      MMCatSystem},
-    {"Shutdown WiFi", {""}, 1, {"stopscan -f"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatWifi},
+    // Plain stop: ends the current scan/attack but keeps any joined network.
+    // The forceful variant (stopscan -f, which also disconnects) is offered as
+    // "Disconnect" next to the connected indicator on AP Detail / Device Info.
+    {"Stop", {""}, 1, {"stopscan"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatWifi},
     {"List SD", {""}, 1, {"ls /"}, INPUT_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Reboot", {""}, 1, {"reboot"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
@@ -322,6 +310,16 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     }
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "airmenu") == 0) {
         app->sub_category = MMCatAir;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "detectmenu") == 0) {
+        app->sub_category = MMCatDetect;
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "capturemenu") == 0) {
+        app->sub_category = MMCatCapture;
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventOpenSpoof);
         return;
     }

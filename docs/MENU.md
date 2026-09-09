@@ -12,6 +12,7 @@ Marauder's Mate  [top-level: category submenu]
 │
 ├─ Device Info ......................... info → parsed fields  (Mate)
 │     • Connected: <ssid> / Not connected   (from join state)
+│     • Disconnect ....... stopscan -f  (only when connected)
 │     • Firmware, Version, Hardware, ESP-IDF, Station MAC, AP MAC, SD…
 │
 ├─ WiFi
@@ -19,6 +20,7 @@ Marauder's Mate  [top-level: category submenu]
 │   │     └─ [select AP] → AP Detail (Mate)
 │   │           • CH / RSSI / BSSID  (info rows)
 │   │           • * Connected (joined)   (if this is the joined AP)
+│   │           ├─ Disconnect ......... stopscan -f  (only when connected here)
 │   │           ├─ Stations (N) → station list (Mate)
 │   │           │     └─ [select client] → Station Detail  (targeted, -c)
 │   │           │           ├─ Deauth ............ attack -t deauth -c
@@ -38,13 +40,12 @@ Marauder's Mate  [top-level: category submenu]
 │   │           └─ PMKID ............. sniffpmkid
 │   ├─ Beacon Mon (Mate) ............. sniffbeacon → APs by beacon count
 │   ├─ Probe Mon (Mate) .............. sniffprobe → probe requests
-│   ├─ Select .............. select -a/-s/-c   [keyboard]
 │   ├─ Set STA MAC ......... randstamac / clonestamac -s
 │   ├─ AP Spoofing ▸  → sub-menu (see below)
 │   ├─ Air Attacks ▸  → sub-menu (see below)
-│   ├─ WiFi Sniff .......... deauth/pmkid/pwn/raw/mactrack/packetcount/pineapple/multissid/sae
-│   ├─ Channel ............. channel (get) / channel -s (set)
-│   └─ Shutdown WiFi ....... stopscan -f
+│   ├─ Detect ▸  → sub-menu (see below)
+│   ├─ Capture ▸  → sub-menu (see below)
+│   └─ Stop ................ stopscan   (ends the scan/attack; keeps connection)
 │
 │   ├─ AP Spoofing  [WiFi → sub-menu]
 │   │     ├─ Spoof SSIDs ...... ssid -a -g / -a -n / -r   [keyboard]  (the broadcast list)
@@ -55,13 +56,24 @@ Marauder's Mate  [top-level: category submenu]
 │   │     ├─ Load Evil Portal HTML file … evilportal -c sethtmlstr
 │   │     └─ Beacon Spam ...... attack -t beacon -a / -l / -r
 │   │
-│   └─ Air Attacks  [WiFi → sub-menu; untargeted / broadcast]
-│         ├─ Probe Spam ....... attack -t probe
-│         ├─ Rickroll Beacons . attack -t rickroll
-│         ├─ Funny SSIDs ...... attack -t funny
-│         ├─ SAE Flood ........ attack -t sae
-│         ├─ Karma ............ karma -p   [keyboard]
-│         └─ Manual Deauth .... attack -t deauth -s   [keyboard: src/dst MAC]
+│   ├─ Air Attacks  [WiFi → sub-menu; untargeted / broadcast]
+│   │     ├─ Probe Spam ....... attack -t probe
+│   │     ├─ Rickroll Beacons . attack -t rickroll
+│   │     ├─ Funny SSIDs ...... attack -t funny
+│   │     ├─ SAE Flood ........ attack -t sae
+│   │     ├─ Karma ............ karma -p   [keyboard]
+│   │     └─ Manual Deauth .... attack -t deauth -s   [keyboard: src/dst MAC]
+│   │
+│   ├─ Detect  [WiFi → sub-menu; defensive: spot attacks / attack gear nearby]
+│   │     ├─ Deauth Frames .... sniffdeauth     (someone deauthing — parsed screen: mm-0jh)
+│   │     ├─ Rogue APs ........ sniffmultissid  (karma/mana multi-SSID beaconing)
+│   │     ├─ Pineapple ........ sniffpinescan   (WiFi Pineapple / evil-AP fingerprints)
+│   │     └─ Pwnagotchi ....... sniffpwn        (nearby Pwnagotchi units)
+│   │
+│   └─ Capture  [WiFi → sub-menu; offensive: handshake / frame capture]
+│         ├─ PMKID ........... sniffpmkid  (→ channel/deauth options)
+│         ├─ SAE (WPA3) ...... sniffsae
+│         └─ Raw ............. sniffraw
 │
 ├─ Bluetooth   [greyed "(no HW)" on ESP32-S2; probed via sniffbt]
 │   ├─ AirTags ............. list -t          ← (C5: → parsed AirTag list, mm-2ki)
@@ -97,8 +109,15 @@ Join result, Host Scan, Port Scan, Beacon Mon, Probe Mon — plus the category
 submenu and the shared per-category / AP-Spoofing renderer.
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → Host Scan → Port Scan.
-The two WiFi sub-menus (AP Spoofing, Air Attacks) share one renderer
-(`wifi_marauder_render_category` on `app->sub_category`).
+The four WiFi sub-menus (AP Spoofing, Air Attacks, Detect, Capture) share one
+renderer (`wifi_marauder_render_category` on `app->sub_category`), each opened by
+a sentinel row (`spoofmenu` / `airmenu` / `detectmenu` / `capturemenu`).
+
+Sniffing is split by intent: **Detect** (defensive — deauth frames, rogue APs,
+Pineapple, Pwnagotchi) vs **Capture** (offensive handshake/frame grab — PMKID,
+SAE, raw). `mactrack` and `packetcount` were dropped: both render only on the
+ESP's TFT and emit nothing over serial, so they show a dead console on the
+screenless module (verified in WiFiScan.cpp — no `Serial.print` in either path).
 
 ## Attack placement (by target level)
 
@@ -111,6 +130,31 @@ Scan). Confirmed against the ESP32 Marauder source:
   `deauth -c`, `badmsg -c`, `sleep -c`.
 - **Untargeted / broadcast** (launch-and-go → **Air Attacks**): `probe`,
   `rickroll`, `funny`, `sae`, `karma`, and manual (`deauth -s <mac>`).
+
+## Retired items
+
+- **Select** (`select -a/-s/-c`) removed. Selection is now implicit: AP Detail
+  and Station Detail call `select` before each attack (`mm_select_target`).
+  `select -s` (SSID) was vestigial — the beacon-list attack broadcasts the whole
+  SSID list regardless of the `.selected` flag (verified in WiFiScan.cpp). The
+  `-f` filter power move ("select every AP matching X, then broadcast-deauth all
+  of them") is the one lost capability — tracked as a future targeted action in
+  `mm-yiy`, not a raw index picker.
+- **Channel** (`channel` / `channel -s`) removed. `set_channel` only matters for
+  channel-locked modes, and the one Mate flow that needs it — PMKID — sets it
+  inline (`sniffpmkid -c` in the PMKID options). Live Scan / scanall sweep all
+  channels and ignore it. Dropped rather than kept as a raw knob.
+
+## Stop vs. Disconnect
+
+`stopscan` and `stopscan -f` are different (confirmed in CommandLine.cpp):
+
+- **Stop** (`stopscan`, WiFi menu) — ends the current scan/attack, **keeps** any
+  joined network.
+- **Disconnect** (`stopscan -f`) — also runs `WiFi.disconnect(true)`, dropping the
+  joined AP and powering down station mode. Surfaced next to the Connected
+  indicator on **AP Detail** and **Device Info** (only shown when connected); the
+  app clears its connection state when firing it.
 
 ## Known redundancies (tracked)
 

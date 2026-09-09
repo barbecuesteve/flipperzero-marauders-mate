@@ -7,6 +7,10 @@
 
 #define MM_INFO_COLLECT_TICKS 15 // ~1.5s to collect the info reply
 #define MM_INFO_ROW 700
+#define MM_INFO_DISCONNECT 699 // actionable row: stopscan -f
+
+// Forceful stop: ends any scan AND drops the joined network (WiFi.disconnect).
+static const char* const MM_INFO_CMD_DISCONNECT = "stopscan -f";
 
 static int s_info_ticks;
 static bool s_info_built;
@@ -19,6 +23,13 @@ static void wifi_marauder_device_info_rx_cb(uint8_t* buf, size_t len, void* cont
 static void wifi_marauder_device_info_noop_cb(void* context, uint32_t index) {
     UNUSED(context);
     UNUSED(index); // info rows are display-only
+}
+
+static void wifi_marauder_device_info_row_cb(void* context, uint32_t index) {
+    WifiMarauderApp* app = context;
+    if(index == MM_INFO_DISCONNECT) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanDisconnect);
+    }
 }
 
 // A displayable field line: "Key: Value". Skips the "#info" echo, the "> "
@@ -43,6 +54,10 @@ static void wifi_marauder_device_info_build(WifiMarauderApp* app) {
         snprintf(conn, sizeof(conn), "Not connected");
     }
     submenu_add_item(submenu, conn, MM_INFO_ROW, wifi_marauder_device_info_noop_cb, app);
+    if(app->wifi_connected) {
+        submenu_add_item(
+            submenu, "Disconnect", MM_INFO_DISCONNECT, wifi_marauder_device_info_row_cb, app);
+    }
 
     int shown = 0;
     const char* text = furi_string_get_cstr(app->ap_scan_buffer);
@@ -94,7 +109,21 @@ bool wifi_marauder_scene_device_info_on_event(void* context, SceneManagerEvent e
     WifiMarauderApp* app = context;
     bool consumed = false;
 
-    if(event.type == SceneManagerEventTypeTick) {
+    if(event.type == SceneManagerEventTypeCustom) {
+        if(event.event == WifiMarauderEventScanDisconnect) {
+            app->wifi_connected = false;
+            app->connected_bssid[0] = '\0';
+            app->connected_ssid[0] = '\0';
+            app->selected_tx_string = MM_INFO_CMD_DISCONNECT;
+            app->is_command = true;
+            app->is_custom_tx_string = false;
+            app->focus_console_start = false;
+            app->show_stopscan_tip = false;
+            app->script = NULL;
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+            consumed = true;
+        }
+    } else if(event.type == SceneManagerEventTypeTick) {
         uint8_t tmp[129];
         size_t got;
         while((got = furi_stream_buffer_receive(app->scan_stream, tmp, sizeof(tmp) - 1, 0)) > 0) {

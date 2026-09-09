@@ -49,6 +49,7 @@ enum {
     MM_D_PMKID,
     MM_D_CSA,
     MM_D_QUIET,
+    MM_D_DISCONNECT,
 };
 
 static const char* const MM_CMD_DEAUTH = "attack -t deauth";
@@ -56,6 +57,8 @@ static const char* const MM_CMD_SNIFF = "sniffraw";
 static const char* const MM_CMD_PMKID = "sniffpmkid";
 static const char* const MM_CMD_CSA = "attack -t csa";
 static const char* const MM_CMD_QUIET = "attack -t quiet";
+// Forceful stop: ends any scan AND drops the joined network (WiFi.disconnect).
+static const char* const MM_CMD_DISCONNECT = "stopscan -f";
 
 static void wifi_marauder_scan_detail_item_cb(void* context, uint32_t index) {
     WifiMarauderApp* app = context;
@@ -92,6 +95,9 @@ static void wifi_marauder_scan_detail_item_cb(void* context, uint32_t index) {
         app->ap_action = MMApActionQuiet;
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
         break;
+    case MM_D_DISCONNECT:
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanDisconnect);
+        break;
     default:
         break; // info rows: no-op
     }
@@ -125,6 +131,8 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     if(connected_here) {
         submenu_add_item(
             submenu, "* Connected (joined)", MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
+        submenu_add_item(
+            submenu, "Disconnect", MM_D_DISCONNECT, wifi_marauder_scan_detail_item_cb, app);
     }
 
     char line[40];
@@ -226,6 +234,20 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
         } else if(event.event == WifiMarauderEventScanHosts) {
             app->host_state = MMHostScanning; // force a fresh sweep
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneHostScan);
+            consumed = true;
+        } else if(event.event == WifiMarauderEventScanDisconnect) {
+            // stopscan -f drops the joined AP; reflect that in our state now so the
+            // indicator clears on return (the ESP echoes "Stopping WiFi tran/recv").
+            app->wifi_connected = false;
+            app->connected_bssid[0] = '\0';
+            app->connected_ssid[0] = '\0';
+            app->selected_tx_string = MM_CMD_DISCONNECT;
+            app->is_command = true;
+            app->is_custom_tx_string = false;
+            app->focus_console_start = false;
+            app->show_stopscan_tip = false;
+            app->script = NULL;
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
             consumed = true;
         } else if(event.event == WifiMarauderEventScanAction) {
             int resolved = app->scan_resolved_index[app->scan_selected];

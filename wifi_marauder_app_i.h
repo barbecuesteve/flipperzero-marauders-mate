@@ -28,7 +28,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (43)
+#define NUM_MENU_ITEMS (49)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {
@@ -38,6 +38,8 @@ typedef enum {
     MMCatSystem,
     MMCatSpoof, // sub-section of WiFi (Evil Portal / beacon / SSID list / AP MAC)
     MMCatAir, // sub-section of WiFi (untargeted/broadcast attacks)
+    MMCatDetect, // sub-section of WiFi (defensive: spot attacks/attack gear nearby)
+    MMCatCapture, // sub-section of WiFi (offensive: handshake/frame capture)
     MMCatCount,
 } MMMenuCategory;
 

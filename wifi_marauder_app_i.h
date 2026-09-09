@@ -28,7 +28,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (49)
+#define NUM_MENU_ITEMS (47)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {

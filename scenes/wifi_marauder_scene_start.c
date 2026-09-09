@@ -7,7 +7,7 @@
 // text box should focus at the start of the output or the end
 typedef enum { NO_ARGS = 0, INPUT_ARGS, TOGGLE_ARGS } InputArgs;
 
-typedef enum { FOCUS_CONSOLE_END = 0, FOCUS_CONSOLE_START, FOCUS_CONSOLE_TOGGLE } FocusConsole;
+typedef enum { FOCUS_CONSOLE_END = 0, FOCUS_CONSOLE_START } FocusConsole;
 
 #define SHOW_STOPSCAN_TIP (true)
 #define NO_TIP (false)
@@ -229,15 +229,6 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Reboot", {""}, 1, {"reboot"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP, MMCatSystem},
-    {"Info", {""}, 1, {"info"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatSystem},
-    {"View Log from",
-     {"start", "end"},
-     2,
-     {"", ""},
-     NO_ARGS,
-     FOCUS_CONSOLE_TOGGLE,
-     NO_TIP,
-     MMCatSystem},
     {"Scripts", {""}, 1, {""}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Save to flipper sdcard",
      {""},
@@ -267,22 +258,11 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     const int selected_option_index = app->selected_option_index[index];
     furi_assert(selected_option_index < item->num_options_menu);
     app->selected_tx_string = item->actual_commands[selected_option_index];
-    // "View Log from" is the only non-command entry (it opens the log viewer /
-    // console instead of sending serial). Detect it by name so it can live
-    // anywhere in the menu, not just at index 0.
-    app->is_command = (strcmp(item->item_string, "View Log from") != 0);
+    app->is_command = true; // every remaining entry sends a command or drills in
     app->is_custom_tx_string = false;
     app->selected_menu_index = index;
-    app->focus_console_start = (item->focus_console == FOCUS_CONSOLE_TOGGLE) ?
-                                   (selected_option_index == 0) :
-                                   item->focus_console;
+    app->focus_console_start = item->focus_console;
     app->show_stopscan_tip = item->show_stopscan_tip;
-
-    if(!app->is_command && selected_option_index == 0) {
-        // View Log from start
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartLogViewer);
-        return;
-    }
 
     // Marauder's Mate: live scanall entry
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "scanlive") == 0) {
@@ -431,10 +411,6 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSettingsInit);
-        } else if(event.event == WifiMarauderEventStartLogViewer) {
-            scene_manager_set_scene_state(
-                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneLogViewer);
         } else if(event.event == WifiMarauderEventStartScriptSelect) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

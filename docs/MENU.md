@@ -96,8 +96,6 @@ Marauder's Mate  [top-level: category submenu]
     ├─ Update .............. update -s
     ├─ Reboot .............. reboot
     ├─ Help ................ help
-    ├─ Info ................ info   (raw; superseded by top-level Device Info)
-    ├─ View Log from ....... start/end → log viewer / console
     ├─ Scripts ............. → script select/edit
     └─ Save to flipper sdcard → settings-init
 ```
@@ -144,6 +142,13 @@ Scan). Confirmed against the ESP32 Marauder source:
   channel-locked modes, and the one Mate flow that needs it — PMKID — sets it
   inline (`sniffpmkid -c` in the PMKID options). Live Scan / scanall sweep all
   channels and ignore it. Dropped rather than kept as a raw knob.
+- **System → Info** (`info`, raw) removed — the top-level **Device Info** (Mate)
+  is the parsed superset (same fields plus a Connected line). `mm-1d7`
+- **View Log from** (the on-device `.log` viewer) removed — a saved log can
+  contain the plaintext WiFi password (Marauder echoes it on join), and the
+  viewer's file browser could open any `.log`, so it surfaced credentials on the
+  device. The whole scene is gone. Log *saving* is untouched; whether to stop
+  logging join output is a separate follow-up. `mm-8cu`
 
 ## Stop vs. Disconnect
 
@@ -158,11 +163,6 @@ Scan). Confirmed against the ESP32 Marauder source:
 
 ## Known redundancies (tracked)
 
-- **System → Info** duplicates **Device Info** — remove the raw item. `mm-1d7`
-- **View Log from** can display saved logs that contain the plaintext WiFi
-  password (Marauder echoes it on join) — security risk; remove the viewer. `mm-8cu`
-- **Join WiFi (saved)** (`join -s`, quick reconnect) overlaps AP-detail **Join (L3)**
-  — consolidate/relabel. `mm-pw2`
 - **WiFi Sniff → pmkid** (untargeted) vs AP-detail **PMKID** (targeted) — dedup. `mm-hda`
 
 ## Hardware notes

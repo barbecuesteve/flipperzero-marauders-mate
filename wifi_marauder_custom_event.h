@@ -7,7 +7,6 @@ typedef enum {
     WifiMarauderEventSaveSourceMac,
     WifiMarauderEventSaveDestinationMac,
     WifiMarauderEventStartSettingsInit,
-    WifiMarauderEventStartLogViewer,
     WifiMarauderEventStartScriptSelect,
     WifiMarauderEventStartSniffPmkidOptions,
     // Marauder's Mate: live scanall feature

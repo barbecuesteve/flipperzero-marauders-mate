@@ -44,19 +44,10 @@ enum {
     MM_D_FOXHUNT,
     MM_D_JOIN,
     MM_D_HOSTS,
-    MM_D_DEAUTH,
-    MM_D_SNIFF,
-    MM_D_PMKID,
-    MM_D_CSA,
-    MM_D_QUIET,
+    MM_D_ATTACKS,
     MM_D_DISCONNECT,
 };
 
-static const char* const MM_CMD_DEAUTH = "attack -t deauth";
-static const char* const MM_CMD_SNIFF = "sniffraw";
-static const char* const MM_CMD_PMKID = "sniffpmkid";
-static const char* const MM_CMD_CSA = "attack -t csa";
-static const char* const MM_CMD_QUIET = "attack -t quiet";
 // Forceful stop: ends any scan AND drops the joined network (WiFi.disconnect).
 static const char* const MM_CMD_DISCONNECT = "stopscan -f";
 
@@ -75,25 +66,8 @@ static void wifi_marauder_scan_detail_item_cb(void* context, uint32_t index) {
     case MM_D_HOSTS:
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanHosts);
         break;
-    case MM_D_DEAUTH:
-        app->ap_action = MMApActionDeauth;
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
-        break;
-    case MM_D_SNIFF:
-        app->ap_action = MMApActionSniff;
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
-        break;
-    case MM_D_PMKID:
-        app->ap_action = MMApActionPmkid;
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
-        break;
-    case MM_D_CSA:
-        app->ap_action = MMApActionCsa;
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
-        break;
-    case MM_D_QUIET:
-        app->ap_action = MMApActionQuiet;
-        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAction);
+    case MM_D_ATTACKS:
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanAttacks);
         break;
     case MM_D_DISCONNECT:
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventScanDisconnect);
@@ -150,11 +124,8 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
         submenu_add_item(submenu, "Join (L3)", MM_D_JOIN, wifi_marauder_scan_detail_item_cb, app);
         submenu_add_item(
             submenu, "Host Scan (L3)", MM_D_HOSTS, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "Deauth", MM_D_DEAUTH, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "CSA", MM_D_CSA, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "Quiet", MM_D_QUIET, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "Sniff", MM_D_SNIFF, wifi_marauder_scan_detail_item_cb, app);
-        submenu_add_item(submenu, "PMKID", MM_D_PMKID, wifi_marauder_scan_detail_item_cb, app);
+        submenu_add_item(
+            submenu, "Attacks", MM_D_ATTACKS, wifi_marauder_scan_detail_item_cb, app);
     } else {
         submenu_add_item(
             submenu, "(not targetable)", MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
@@ -249,40 +220,9 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
             app->script = NULL;
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
             consumed = true;
-        } else if(event.event == WifiMarauderEventScanAction) {
-            int resolved = app->scan_resolved_index[app->scan_selected];
-            if(resolved < 0) return true; // guard: not targetable
-
-            mm_select_target(app, resolved, -1); // AP only, clearing any prior selection
-
-            switch(app->ap_action) {
-            case MMApActionDeauth:
-                app->selected_tx_string = MM_CMD_DEAUTH;
-                break;
-            case MMApActionSniff:
-                app->selected_tx_string = MM_CMD_SNIFF;
-                break;
-            case MMApActionPmkid:
-                app->selected_tx_string = MM_CMD_PMKID;
-                break;
-            case MMApActionCsa:
-                app->selected_tx_string = MM_CMD_CSA;
-                break;
-            case MMApActionQuiet:
-                app->selected_tx_string = MM_CMD_QUIET;
-                break;
-            default:
-                app->selected_tx_string = MM_CMD_DEAUTH;
-                break;
-            }
-
-            app->is_command = true;
-            app->is_custom_tx_string = false;
-            app->focus_console_start = false;
-            app->show_stopscan_tip = true;
-            app->script = NULL;
-
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
+        } else if(event.event == WifiMarauderEventScanAttacks) {
+            if(app->scan_resolved_index[app->scan_selected] < 0) return true; // not targetable
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneApAttacks);
             consumed = true;
         }
     }

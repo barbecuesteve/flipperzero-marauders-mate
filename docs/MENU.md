@@ -33,11 +33,12 @@ Marauder's Mate  [top-level: category submenu]
 │   │           ├─ Host Scan (L3) .... arpscan, live host IPs (Mate)
 │   │           │     └─ [select host] → Port Scan (Mate)
 │   │           │           • open ports + service names, live progress
-│   │           ├─ Deauth ............ attack -t deauth   (this AP)
-│   │           ├─ CSA ............... attack -t csa      (impersonate this AP)
-│   │           ├─ Quiet ............. attack -t quiet    (impersonate this AP)
-│   │           ├─ Sniff ............. sniffraw
-│   │           └─ PMKID ............. sniffpmkid
+│   │           └─ Attacks ▸ → AP attack sub-menu (Mate)  [all target this AP]
+│   │                 ├─ Deauth ...... attack -t deauth
+│   │                 ├─ CSA ......... attack -t csa      (impersonate this AP)
+│   │                 ├─ Quiet ....... attack -t quiet    (impersonate this AP)
+│   │                 ├─ Sniff ....... sniffraw
+│   │                 └─ PMKID ....... sniffpmkid
 │   ├─ Beacon Mon (Mate) ............. sniffbeacon → APs by beacon count
 │   ├─ Probe Mon (Mate) .............. sniffprobe → probe requests
 │   ├─ Set STA MAC ......... randstamac / clonestamac -s
@@ -102,9 +103,9 @@ Marauder's Mate  [top-level: category submenu]
 
 ## Parsed (Mate) scenes
 
-Device Info, Live Scan, AP Detail, Station List, Station Detail, Fox Hunt,
-Join result, Host Scan, Port Scan, Beacon Mon, Probe Mon — plus the category
-submenu and the shared per-category / AP-Spoofing renderer.
+Device Info, Live Scan, AP Detail, AP Attacks, Station List, Station Detail,
+Fox Hunt, Join result, Host Scan, Port Scan, Beacon Mon, Probe Mon — plus the
+category submenu and the shared per-category / AP-Spoofing renderer.
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → Host Scan → Port Scan.
 The four WiFi sub-menus (AP Spoofing, Air Attacks, Detect, Capture) share one
@@ -122,8 +123,9 @@ screenless module (verified in WiFiScan.cpp — no `Serial.print` in either path
 Each attack lives where its target is chosen (none are L3/host — those are Port
 Scan). Confirmed against the ESP32 Marauder source:
 
-- **Selected AP** (needs a chosen AP → **AP Detail**): `deauth` (requires
-  `select`, `filterActive()`), `csa`, `quiet` (impersonate that AP's BSSID).
+- **Selected AP** (needs a chosen AP → **AP Detail → Attacks**): `deauth`
+  (requires `select`, `filterActive()`), `csa`, `quiet` (impersonate that AP's
+  BSSID), plus `sniffraw` / `sniffpmkid` capture on that AP.
 - **Selected station** (needs a chosen client → **Station Detail**, all `-c`):
   `deauth -c`, `badmsg -c`, `sleep -c`.
 - **Untargeted / broadcast** (launch-and-go → **Air Attacks**): `probe`,

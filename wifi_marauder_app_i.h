@@ -61,14 +61,6 @@ typedef struct {
 } MMStation;
 
 typedef enum {
-    MMApActionDeauth,
-    MMApActionSniff,
-    MMApActionPmkid,
-    MMApActionCsa, // channel-switch announcement (impersonates the selected AP)
-    MMApActionQuiet, // quiet-time attack (impersonates the selected AP)
-} MMApAction;
-
-typedef enum {
     MMLiveScanning, // clearlist + scanall streaming, live dedup
     MMLiveListing, // sent list -a, capturing text to resolve AP indices
     MMLiveListingClients, // sent list -c, capturing text to resolve stations
@@ -182,7 +174,6 @@ struct WifiMarauderApp {
 
     // Marauder's Mate: shared command/parse scratch (used by the scan scenes)
     FuriString* ap_scan_buffer; // list -a / list -c text accumulator
-    int ap_action; // MMApAction chosen on the detail screen
     char ap_cmd_buf[32]; // scratch for "select -a/-c <n>"
     char join_cmd[96]; // scratch for "join -a <n> -p <password>" (auto-join)
     char join_ssid[MM_AP_NAME_MAX]; // SSID of a typed join, for the "Save for later?" prompt

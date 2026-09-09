@@ -14,6 +14,7 @@ typedef enum {
     WifiMarauderEventScanApSelected,
     WifiMarauderEventScanRescan,
     WifiMarauderEventScanAction,
+    WifiMarauderEventScanAttacks,
     WifiMarauderEventScanStations,
     WifiMarauderEventScanFoxHunt,
     WifiMarauderEventScanJoin,

@@ -183,6 +183,23 @@ MMCap mm_info_line_bt(const char* line);
 // "GPS: Not Supported" (both -> MMCapNo: no usable GPS).
 MMCap mm_info_line_gps(const char* line);
 
+// One deauth/disassoc frame from a `sniffdeauth` line. The firmware prints
+// (WiFiScan.cpp, WIFI_SCAN_DEAUTH): "<rssi> Ch: <channel> <src> -> <dst>", with
+// an optional leading "> " prompt and an optional trailing space (screen boards).
+typedef struct {
+    char src[18]; // sender MAC "xx:xx:xx:xx:xx:xx"
+    char dst[18]; // target MAC (often the AP's clients or ff:ff:ff:ff:ff:ff)
+    int channel;
+    int rssi; // signed dBm
+} MMDeauthFrame;
+
+// Parse one sniffdeauth line into *out. Returns false if the line isn't a
+// deauth frame report (no " Ch: " / " -> " / valid MACs).
+bool mm_deauth_parse_line(const char* line, MMDeauthFrame* out);
+
+// True if mac is the broadcast address ff:ff:ff:ff:ff:ff (case-insensitive).
+bool mm_mac_is_broadcast(const char* mac);
+
 // Direct upload (wardrive -> WiGLE), from info's "Direct Upload: Supported" /
 // "Not Supported". Gates the Upload Wardrive action.
 MMCap mm_info_line_direct_upload(const char* line);

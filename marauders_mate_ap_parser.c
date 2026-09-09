@@ -709,6 +709,51 @@ MMCap mm_info_line_gps(const char* line) {
     return MMCapUnknown;
 }
 
+bool mm_mac_is_broadcast(const char* mac) {
+    if(!mac) return false;
+    for(const char* p = mac; *p; p++) {
+        if(*p == ':') continue;
+        char c = *p;
+        if(c >= 'A' && c <= 'F') c = (char)(c + 32);
+        if(c != 'f') return false;
+    }
+    return true;
+}
+
+// Copy a MAC token starting at *p (stops at space/end); validate and store in
+// out[18]. Returns the char after the token, or NULL if it isn't a MAC.
+static const char* mm_take_mac(const char* p, char* out) {
+    int n = 0;
+    while(p[n] && p[n] != ' ' && p[n] != '\r' && p[n] != '\n' && n < 17) n++;
+    if(n != 17) return NULL;
+    char tmp[18];
+    memcpy(tmp, p, 17);
+    tmp[17] = '\0';
+    if(!mm_ap_is_bssid(tmp)) return NULL;
+    memcpy(out, tmp, 18);
+    return p + 17;
+}
+
+bool mm_deauth_parse_line(const char* line, MMDeauthFrame* out) {
+    if(!line || !out) return false;
+    // Anchors that a real "<rssi> Ch: <ch> <src> -> <dst>" line always has.
+    const char* ch = mm_ci_strstr(line, " ch: ");
+    const char* arrow = strstr(line, " -> ");
+    if(!ch || !arrow || arrow < ch) return false;
+
+    const char* p = line;
+    while(*p == ' ' || *p == '>' || *p == '\t') p++; // skip any "> " prompt
+    out->rssi = (int)strtol(p, NULL, 10);
+    out->channel = (int)strtol(ch + 5, NULL, 10); // after " Ch: "
+
+    // src is the MAC immediately before " -> "; walk back to its start.
+    const char* s = arrow;
+    while(s > line && s[-1] != ' ') s--;
+    if(!mm_take_mac(s, out->src)) return false;
+    if(!mm_take_mac(arrow + 4, out->dst)) return false;
+    return true;
+}
+
 MMCap mm_info_line_direct_upload(const char* line) {
     if(!line || !mm_ci_strstr(line, "direct upload")) return MMCapUnknown;
     if(mm_ci_strstr(line, "not supported")) return MMCapNo;

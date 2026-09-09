@@ -64,11 +64,11 @@ Marauder's Mate  [top-level: category submenu]
 │   │     ├─ Rickroll Beacons . attack -t rickroll
 │   │     ├─ Funny SSIDs ...... attack -t funny
 │   │     ├─ SAE Flood ........ attack -t sae
-│   │     ├─ Karma ............ karma -p   [keyboard]
+│   │     ├─ Karma ............ karma -p   [keyboard; SD-gated: serves an Evil Portal page]
 │   │     └─ Manual Deauth .... attack -t deauth -s   [keyboard: src/dst MAC]
 │   │
 │   ├─ Detect  [WiFi → sub-menu; defensive: spot attacks / attack gear nearby]
-│   │     ├─ Deauth Frames .... sniffdeauth     (someone deauthing — parsed screen: mm-0jh)
+│   │     ├─ Deauth Frames (Mate) . sniffdeauth → live flows by src→dst (who's deauthing whom)
 │   │     ├─ Rogue APs ........ sniffmultissid  (karma/mana multi-SSID beaconing)
 │   │     ├─ Pineapple ........ sniffpinescan   (WiFi Pineapple / evil-AP fingerprints)
 │   │     └─ Pwnagotchi ....... sniffpwn        (nearby Pwnagotchi units)
@@ -99,7 +99,6 @@ Marauder's Mate  [top-level: category submenu]
     ├─ Reboot (Mate) ...... Cancel / Reboot confirm → reboot
     ├─ Help ............... help
     └─ Scripts ............ → script select/edit
-│
     └─ SD Card  [System → sub-menu; greyed when no card]
           ├─ List SD ...... ls /   [keyboard]
           └─ Update ....... update -s
@@ -119,8 +118,8 @@ change to drive it — mm-82m); works natively on neopixel boards / the C5.
 ## Parsed (Mate) scenes
 
 Device Info, Live Scan, AP Detail, AP Attacks, Station List, Station Detail,
-Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon, LED picker,
-Settings, Reboot confirm — plus the category submenu and the shared
+Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon, Deauth Mon,
+LED picker, Settings, Reboot confirm — plus the category submenu and the shared
 per-category / AP-Spoofing renderer (now also used by the SD Card sub-menu).
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → ARP Scan → Port Scan.

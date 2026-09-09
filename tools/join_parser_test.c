@@ -140,6 +140,25 @@ int main(void) {
     CHECK(mm_info_line_dual_band("Dual Band: Not Supported") == MMCapNo, "dual band no");
     CHECK(mm_info_line_dual_band("Bluetooth: Supported") == MMCapUnknown, "non-band line -> unknown");
 
+    // --- deauth sniff parser -------------------------------------------------
+    MMDeauthFrame df;
+    CHECK(
+        mm_deauth_parse_line("-42 Ch: 6 aa:bb:cc:dd:ee:ff -> 11:22:33:44:55:66", &df),
+        "deauth line parses");
+    CHECK(strcmp(df.src, "aa:bb:cc:dd:ee:ff") == 0, "deauth src");
+    CHECK(strcmp(df.dst, "11:22:33:44:55:66") == 0, "deauth dst");
+    CHECK(df.rssi == -42, "deauth rssi");
+    CHECK(df.channel == 6, "deauth channel");
+    // prompt prefix + trailing space (screen-board variant)
+    CHECK(
+        mm_deauth_parse_line("> -70 Ch: 11 00:11:22:33:44:55 -> ff:ff:ff:ff:ff:ff ", &df),
+        "deauth with prompt+trailing space");
+    CHECK(strcmp(df.dst, "ff:ff:ff:ff:ff:ff") == 0, "deauth broadcast dst");
+    CHECK(mm_mac_is_broadcast(df.dst), "broadcast recognised");
+    CHECK(!mm_mac_is_broadcast("aa:bb:cc:dd:ee:ff"), "non-broadcast not flagged");
+    CHECK(!mm_deauth_parse_line("Starting Deauth sniff. Stop with stopscan", &df), "banner rejected");
+    CHECK(!mm_deauth_parse_line("-42 Ch: 6 nota:mac -> 11:22:33:44:55:66", &df), "bad src rejected");
+
     if(failures == 0) {
         printf("join_parser_test: OK\n");
         return 0;

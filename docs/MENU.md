@@ -135,6 +135,13 @@ SAE, raw). `mactrack` and `packetcount` were dropped: both render only on the
 ESP's TFT and emit nothing over serial, so they show a dead console on the
 screenless module (verified in WiFiScan.cpp — no `Serial.print` in either path).
 
+The five live monitors (Beacon, Probe, Deauth, Pineapple, Pwnagotchi) share one
+engine (`wifi_marauder_monitor.{h,c}`): each scene is a thin wrapper supplying an
+`MMMonDef` (command, headers, a per-line parser, a row formatter). The engine
+owns the RX drain, dedup+count store, sort, and throttled rebuild. Pwnagotchi
+shows a MAC when the firmware patch is applied (see `firmware/`); otherwise
+name + pwnd count.
+
 ## Attack placement (by target level)
 
 Each attack lives where its target is chosen (none are L3/host — those are Port

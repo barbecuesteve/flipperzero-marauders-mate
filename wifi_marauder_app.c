@@ -142,8 +142,6 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->host_dirty = false;
     app->host_selected = 0;
     app->host_state = MMHostReady; // detail scene forces a fresh scan
-    app->beacon_ap_count = 0;
-    app->probe_client_count = 0;
     app->sel_ap_prev = -1;
     app->sel_sta_prev = -1;
 

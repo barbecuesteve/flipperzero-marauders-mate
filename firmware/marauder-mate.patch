@@ -1,5 +1,5 @@
 diff --git a/esp32_marauder/WiFiScan.cpp b/esp32_marauder/WiFiScan.cpp
-index d0b6bc7..c6d888e 100644
+index d0b6bc7..83f418b 100644
 --- a/esp32_marauder/WiFiScan.cpp
 +++ b/esp32_marauder/WiFiScan.cpp
 @@ -4616,6 +4616,64 @@ void WiFiScan::RunInfo() {
@@ -67,3 +67,23 @@ index d0b6bc7..c6d888e 100644
    #ifdef HAS_BATTERY
      battery_obj.battery_level = battery_obj.getBatteryLevel();
      if (battery_obj.i2c_supported) {
+@@ -7451,6 +7509,19 @@ void WiFiScan::processPwnagotchiBeacon(const uint8_t* frame, int length) {
+ 
+     Serial.print(F("Name: "));
+     Serial.println(name);
++    // Host-side clients (Marauder's Mate) key on the source MAC and can show
++    // version/uptime/deauth. Emit these *before* "Pwnd #:" so a parser that
++    // commits a record on the Pwnd line captures them; stock clients ignore them.
++    char pwn_mac[] = "00:00:00:00:00:00";
++    getMAC(pwn_mac, frame, 10);
++    Serial.print(F("MAC: "));
++    Serial.println(pwn_mac);
++    Serial.print(F("Ver: "));
++    Serial.println(ver ? ver : "");
++    Serial.print(F("Uptime: "));
++    Serial.println(uptime);
++    Serial.print(F("Deauth: "));
++    Serial.println(deauth ? "true" : "false");
+     Serial.print(F("Pwnd #: "));
+     Serial.println(pwnd_tot);
+ 

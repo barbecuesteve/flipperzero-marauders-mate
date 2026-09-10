@@ -237,18 +237,8 @@ struct WifiMarauderApp {
     int host_selected;
     MMHostState host_state;
     int host_ticks;
-
-    // Marauder's Mate: beacon activity monitor (sniffbeacon)
-    MMScanAp beacon_aps[MM_AP_MAX]; // deduped by BSSID
-    int beacon_hits[MM_AP_MAX]; // beacon frames counted per AP
-    int beacon_ap_count;
-    int beacon_ticks; // rebuild throttle
-
-    // Marauder's Mate: probe-request monitor (sniffprobe)
-    MMScanAp probe_clients[MM_AP_MAX]; // deduped by client MAC (in .bssid), .ssid = requested
-    int probe_hits[MM_AP_MAX]; // probe frames counted per client
-    int probe_client_count;
-    int probe_ticks;
+    // Live monitors (beacon/probe/deauth/pineapple/pwnagotchi) share one engine
+    // with its own record store -- see wifi_marauder_monitor.{h,c}.
 };
 
 // Supported commands:

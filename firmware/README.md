@@ -1,39 +1,44 @@
 # ESP32 Marauder firmware patch
 
-Marauder's Mate reads board capabilities from the ESP's `info` reply
-(see `mm-xdy` and `docs/MENU.md` → "Capability detection"). Stock Marauder
-firmware doesn't report Bluetooth / GPS / Direct Upload / Dual Band in `info`,
-so this patch adds those lines to `RunInfo`.
+Marauder's Mate reads richer data out of the ESP than stock Marauder firmware
+emits over serial. This optional, additive patch adds it. **The app works on
+stock firmware** — these just light up extra detail — so flashing it is optional
+polish, deferred until you're set up to build the ESP firmware (e.g. at C5 time).
 
-## marauder-capinfo.patch
+## marauder-mate.patch
 
-Adds to `WiFiScan.cpp` `RunInfo()`:
+All changes are in `esp32_marauder/WiFiScan.cpp`, additive (nothing removed):
 
-```
-Bluetooth: Supported | Not Supported     (from HAS_BT)
-GPS: Connected | Not Connected | Not Supported  (HAS_GPS + getGpsModuleStatus)
-Direct Upload: Supported | Not Supported (from HAS_DIRECT_UPLOAD)
-Dual Band: Supported | Not Supported     (from HAS_DUAL_BAND)
-```
+1. **Capability lines in `info`** (`RunInfo`): adds
+   `Bluetooth: Supported|Not Supported`, `GPS: Connected|Not Connected|Not
+   Supported`, `Direct Upload: Supported|Not Supported`, and
+   `Dual Band: Supported|Not Supported`. Lets a single `info` probe gate the
+   whole UI (BT/GPS/upload/dual). Without it the app still detects the board and
+   SD card, uses a `sniffbt` fallback for Bluetooth, and leaves the rest
+   ungreyed.
 
-With it, a single `info` probe covers presence + SD + BT + GPS + upload +
-dual-band. **Without it the app still works**: presence and SD come from stock
-`info`, Bluetooth from the `sniffbt -serial` fallback; GPS / Direct Upload /
-Dual Band stay Unknown (ungreyed). So flashing this is optional polish.
+2. **Pwnagotchi identity** (`processPwnagotchiBeacon`): emits `MAC:`, `Ver:`,
+   `Uptime:`, and `Deauth:` (before the existing `Pwnd #:` line). Stock firmware
+   prints only name + pwnd count; this gives the Pwnagotchi monitor a real MAC.
+   The app's parser accepts both formats.
 
-## Apply + build (deferred — do at C5 toolchain-setup time)
+## Apply + build
 
 ```sh
 cd /path/to/ESP32Marauder
-git apply /path/to/Flipper/firmware/marauder-capinfo.patch
+git apply /path/to/Flipper/firmware/marauder-mate.patch
 ```
 
-Then build for the target board and flash. For the Flipper Zero WiFi Dev Board:
-ESP32-S2, build flag `MARAUDER_FLIPPER` (uncomment in `esp32_marauder/configs.h`),
-`esptoolChip: esp32s2`. Build needs the Arduino-ESP32 core + Marauder's library
-set per the upstream "Compiling and Flashing" wiki (the repo bundles only a
-couple of libraries). Flash offsets: bootloader `0x1000`, partitions `0x8000`,
-boot_app0 `0xE000`, app `0x10000` (or just let `arduino-cli upload` handle them).
+Then build for your board and flash. Flipper Zero WiFi Dev Board: ESP32-S2,
+build flag `MARAUDER_FLIPPER` (uncomment in `esp32_marauder/configs.h`),
+`esptoolChip: esp32s2`. The build needs the Arduino-ESP32 core plus Marauder's
+library set per the upstream "Compiling and Flashing" wiki (this repo bundles
+only a couple). Flash offsets: bootloader `0x1000`, partitions `0x8000`,
+boot_app0 `0xE000`, app `0x10000` (or let `arduino-cli upload` handle them).
+
+Still open as a separate item: making the `led` command drive the Flipper dev
+board's 3-GPIO status LED (`HAS_FLIPPER_LED`) so the LED colour picker works on
+that board — see bead `mm-82m`.
 
 The patch targets the upstream tree (`justcallmekoko/ESP32Marauder`); the local
 clone at `~/Code/ESP32Marauder` also carries the change in its working tree.

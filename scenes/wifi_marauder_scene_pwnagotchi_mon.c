@@ -44,7 +44,7 @@ static void pwn_label(const MMMonRec* r, char* buf, size_t sz) {
 
 static const MMMonDef s_def = {
     .cmd = "sniffpwn",
-    .waiting = "Listening for Pwnagotchi...",
+    .waiting = "Pwnagotchi scan...",
     .header_fmt = "Pwnagotchi: %d",
     .chanhop = true,
     .sort_by_metric = true,

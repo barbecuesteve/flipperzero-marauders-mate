@@ -219,10 +219,6 @@ void wifi_marauder_make_app_folder(WifiMarauderApp* app) {
         dialog_message_show_storage_error(app->dialogs, "Cannot create\nlogs folder");
     }
 
-    if(!storage_simply_mkdir(app->storage, MARAUDER_APP_FOLDER_SCRIPTS)) {
-        dialog_message_show_storage_error(app->dialogs, "Cannot create\nscripts folder");
-    }
-
     if(!storage_simply_mkdir(app->storage, MARAUDER_APP_FOLDER_HTML)) {
         dialog_message_show_storage_error(app->dialogs, "Cannot create\nhtml folder");
     }

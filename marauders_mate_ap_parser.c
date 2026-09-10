@@ -754,6 +754,71 @@ bool mm_deauth_parse_line(const char* line, MMDeauthFrame* out) {
     return true;
 }
 
+// Copy the text after `label` up to `stop` (or end) into out, trimmed.
+static void mm_copy_field(const char* start, const char* stop, char* out, size_t out_sz) {
+    size_t n = 0;
+    const char* p = start;
+    while(*p && (!stop || p < stop) && n + 1 < out_sz) out[n++] = *p++;
+    while(n > 0 && (out[n - 1] == ' ' || out[n - 1] == '\r' || out[n - 1] == '\n')) n--;
+    out[n] = '\0';
+}
+
+bool mm_pinescan_parse_line(const char* line, MMPineScan* out) {
+    if(!line || !out) return false;
+    const char* mac = mm_ci_strstr(line, "mac: ");
+    const char* det = mm_ci_strstr(line, " det: ");
+    if(!mac || !det) return false; // " det: " is what separates this from multissid
+    const char* ch = mm_ci_strstr(line, " ch: ");
+    const char* rssi = mm_ci_strstr(line, " rssi: ");
+    const char* ssid = mm_ci_strstr(line, " ssid: ");
+
+    // MAC is a fixed 17-char token after "MAC: ".
+    {
+        char tmp[18];
+        mm_copy_field(mac + 5, mac + 5 + 17, tmp, sizeof(tmp));
+        if(!mm_ap_is_bssid(tmp)) return false;
+        memcpy(out->mac, tmp, 18);
+    }
+    out->channel = ch ? (int)strtol(ch + 5, NULL, 10) : 0;
+    out->rssi = rssi ? (int)strtol(rssi + 7, NULL, 10) : 0;
+    mm_copy_field(det + 6, ssid, out->det, sizeof(out->det));
+    if(ssid) {
+        mm_copy_field(ssid + 7, NULL, out->ssid, sizeof(out->ssid));
+    } else {
+        out->ssid[0] = '\0';
+    }
+    return true;
+}
+
+bool mm_pwn_line_name(const char* line, char* out, size_t out_sz) {
+    if(!line || !out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '>') p++;
+    if(strncmp(p, "Name: ", 6) != 0) return false;
+    mm_copy_field(p + 6, NULL, out, out_sz);
+    return out[0] != '\0';
+}
+
+bool mm_pwn_line_pwnd(const char* line, int* out) {
+    if(!line || !out) return false;
+    const char* p = mm_ci_strstr(line, "pwnd #: ");
+    if(!p) return false;
+    *out = (int)strtol(p + 8, NULL, 10);
+    return true;
+}
+
+bool mm_pwn_line_mac(const char* line, char* out) {
+    if(!line || !out) return false;
+    const char* p = line;
+    while(*p == ' ' || *p == '>') p++;
+    if(strncmp(p, "MAC: ", 5) != 0) return false;
+    char tmp[18];
+    mm_copy_field(p + 5, p + 5 + 17, tmp, sizeof(tmp));
+    if(!mm_ap_is_bssid(tmp)) return false;
+    memcpy(out, tmp, 18);
+    return true;
+}
+
 MMCap mm_info_line_direct_upload(const char* line) {
     if(!line || !mm_ci_strstr(line, "direct upload")) return MMCapUnknown;
     if(mm_ci_strstr(line, "not supported")) return MMCapNo;

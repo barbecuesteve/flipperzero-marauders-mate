@@ -159,6 +159,38 @@ int main(void) {
     CHECK(!mm_deauth_parse_line("Starting Deauth sniff. Stop with stopscan", &df), "banner rejected");
     CHECK(!mm_deauth_parse_line("-42 Ch: 6 nota:mac -> 11:22:33:44:55:66", &df), "bad src rejected");
 
+    // --- pinescan parser -----------------------------------------------------
+    MMPineScan ps;
+    CHECK(
+        mm_pinescan_parse_line(
+            "MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -55 DET: SUSP_OUI SSID: EvilAP", &ps),
+        "pinescan line parses");
+    CHECK(strcmp(ps.mac, "aa:bb:cc:dd:ee:ff") == 0, "pinescan mac");
+    CHECK(ps.channel == 6, "pinescan channel");
+    CHECK(ps.rssi == -55, "pinescan rssi");
+    CHECK(strcmp(ps.det, "SUSP_OUI") == 0, "pinescan det");
+    CHECK(strcmp(ps.ssid, "EvilAP") == 0, "pinescan ssid");
+    CHECK(
+        mm_pinescan_parse_line(
+            "MAC: 00:13:37:00:00:01 CH: 11 RSSI: -70 DET: TAG+SUSP_CAP SSID: [hidden]", &ps),
+        "pinescan hidden parses");
+    CHECK(strcmp(ps.det, "TAG+SUSP_CAP") == 0, "pinescan multi-word det");
+    CHECK(strcmp(ps.ssid, "[hidden]") == 0, "pinescan hidden ssid");
+    // multissid uses the same MAC/CH/RSSI prefix but no DET -> must be rejected
+    CHECK(
+        !mm_pinescan_parse_line("MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -55", &ps),
+        "multissid line not a pinescan");
+
+    // --- pwnagotchi parser ---------------------------------------------------
+    char pwn_name[33];
+    int pwnd = -1;
+    CHECK(mm_pwn_line_name("Name: pwnie", pwn_name, sizeof(pwn_name)), "pwn name parses");
+    CHECK(strcmp(pwn_name, "pwnie") == 0, "pwn name value");
+    CHECK(mm_pwn_line_pwnd("Pwnd #: 42", &pwnd), "pwn pwnd parses");
+    CHECK(pwnd == 42, "pwn pwnd value");
+    CHECK(!mm_pwn_line_name("Pwnd #: 42", pwn_name, sizeof(pwn_name)), "pwnd line not a name");
+    CHECK(!mm_pwn_line_pwnd("Name: pwnie", &pwnd), "name line not a pwnd");
+
     if(failures == 0) {
         printf("join_parser_test: OK\n");
         return 0;

@@ -9,26 +9,6 @@ char* _wifi_marauder_get_prefix_from_cmd(const char* command) {
 }
 
 bool _wifi_marauder_is_saving_enabled(WifiMarauderApp* app) {
-    // If it is a script that contains a sniff function
-    if(app->script != NULL) {
-        if(app->script->save_pcap == WifiMarauderScriptBooleanFalse) {
-            return false;
-        }
-        if(app->script->save_pcap == WifiMarauderScriptBooleanUndefined) {
-            if(!app->ok_to_save_pcaps) {
-                return false;
-            }
-        }
-        return wifi_marauder_script_has_stage(app->script, WifiMarauderScriptStageTypeSniffRaw) ||
-               wifi_marauder_script_has_stage(
-                   app->script, WifiMarauderScriptStageTypeSniffBeacon) ||
-               wifi_marauder_script_has_stage(
-                   app->script, WifiMarauderScriptStageTypeSniffDeauth) ||
-               wifi_marauder_script_has_stage(app->script, WifiMarauderScriptStageTypeSniffEsp) ||
-               wifi_marauder_script_has_stage(
-                   app->script, WifiMarauderScriptStageTypeSniffPmkid) ||
-               wifi_marauder_script_has_stage(app->script, WifiMarauderScriptStageTypeSniffPwn);
-    }
     if(!app->ok_to_save_pcaps) {
         return false;
     }
@@ -120,13 +100,9 @@ void wifi_marauder_scene_console_output_on_enter(void* context) {
         wifi_marauder_console_output_handle_rx_packets_cb); // setup callback for packets rx thread
 
     // Get ready to send command
-    if((app->is_command && app->selected_tx_string) || app->script) {
-        char* prefix_buf = NULL;
-        if(strlen(app->selected_tx_string) > 0) {
-            prefix_buf = _wifi_marauder_get_prefix_from_cmd(app->selected_tx_string);
-        }
-        const char* prefix = prefix_buf ? prefix_buf : // Function name
-                                          app->script->name; // Script name
+    if(app->is_command && app->selected_tx_string) {
+        char* prefix_buf = _wifi_marauder_get_prefix_from_cmd(app->selected_tx_string);
+        const char* prefix = prefix_buf; // Function name
 
         // Create files *before* sending command
         // (it takes time to iterate through the directory)
@@ -151,8 +127,7 @@ void wifi_marauder_scene_console_output_on_enter(void* context) {
         if(_wifi_marauder_is_saving_enabled(app)) {
             const char* folder = NULL;
             const char* extension = NULL;
-            if(app->script || // Scripts only support sniff functions, but selected_tx_string is empty
-               strncmp("sniff", app->selected_tx_string, strlen("sniff")) == 0) {
+            if(strncmp("sniff", app->selected_tx_string, strlen("sniff")) == 0) {
                 folder = MARAUDER_APP_FOLDER_PCAPS;
                 extension = "pcap";
             } else {
@@ -178,17 +153,12 @@ void wifi_marauder_scene_console_output_on_enter(void* context) {
 
         // Send command with newline '\n'
         if(app->selected_tx_string) {
-            if(app->script == NULL) {
-                wifi_marauder_uart_tx(
-                    app->uart,
-                    (uint8_t*)(app->selected_tx_string),
-                    strlen(app->selected_tx_string));
-                if(app->is_writing_pcap) {
-                    wifi_marauder_uart_tx(
-                        app->uart, (uint8_t*)(" -serial\n"), strlen(" -serial\n"));
-                } else {
-                    wifi_marauder_uart_tx(app->uart, (uint8_t*)("\n"), 1);
-                }
+            wifi_marauder_uart_tx(
+                app->uart, (uint8_t*)(app->selected_tx_string), strlen(app->selected_tx_string));
+            if(app->is_writing_pcap) {
+                wifi_marauder_uart_tx(app->uart, (uint8_t*)(" -serial\n"), strlen(" -serial\n"));
+            } else {
+                wifi_marauder_uart_tx(app->uart, (uint8_t*)("\n"), 1);
             }
             if(send_html && the_html) {
                 wifi_marauder_uart_tx(app->uart, the_html, html_size);
@@ -196,12 +166,6 @@ void wifi_marauder_scene_console_output_on_enter(void* context) {
                 free(the_html);
                 send_html = false;
             }
-        }
-
-        // Run the script if the file with the script has been opened
-        if(app->script != NULL) {
-            app->script_worker = wifi_marauder_script_worker_alloc(app->uart);
-            wifi_marauder_script_worker_start(app->script_worker, app->script);
         }
 
         if(prefix_buf) {
@@ -237,11 +201,6 @@ void wifi_marauder_scene_console_output_on_exit(void* context) {
     // Unregister rx callback
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
     wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
-
-    if(app->script_worker) {
-        wifi_marauder_script_worker_free(app->script_worker);
-        app->script_worker = NULL;
-    }
 
     app->is_writing_pcap = false;
     if(app->capture_file && storage_file_is_open(app->capture_file)) {

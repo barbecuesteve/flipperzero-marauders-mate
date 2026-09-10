@@ -186,7 +186,6 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
                 app->is_custom_tx_string = false;
                 app->focus_console_start = false;
                 app->show_stopscan_tip = false;
-                app->script = NULL;
                 scene_manager_next_scene(app->scene_manager, WifiMarauderSceneJoin);
             } else {
                 // No stored password: reuse the text-input flow: prefill
@@ -201,7 +200,6 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
                 app->is_custom_tx_string = false;
                 app->focus_console_start = false;
                 app->show_stopscan_tip = false;
-                app->script = NULL;
                 scene_manager_next_scene(app->scene_manager, WifiMarauderSceneTextInput);
             }
             consumed = true;
@@ -220,7 +218,6 @@ bool wifi_marauder_scene_scan_detail_on_event(void* context, SceneManagerEvent e
             app->is_custom_tx_string = false;
             app->focus_console_start = false;
             app->show_stopscan_tip = false;
-            app->script = NULL;
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
             consumed = true;
         } else if(event.event == WifiMarauderEventScanAttacks) {

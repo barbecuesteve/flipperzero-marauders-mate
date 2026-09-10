@@ -70,8 +70,8 @@ Marauder's Mate  [top-level: category submenu]
 │   ├─ Detect  [WiFi → sub-menu; defensive: spot attacks / attack gear nearby]
 │   │     ├─ Deauth Frames (Mate) . sniffdeauth → live flows by src→dst (who's deauthing whom)
 │   │     ├─ Rogue APs ........ sniffmultissid  (karma/mana multi-SSID beaconing)
-│   │     ├─ Pineapple ........ sniffpinescan   (WiFi Pineapple / evil-AP fingerprints)
-│   │     └─ Pwnagotchi ....... sniffpwn        (nearby Pwnagotchi units)
+│   │     ├─ Pineapple (Mate) . sniffpinescan → list by MAC (SSID / DET / RSSI)
+│   │     └─ Pwnagotchi (Mate) sniffpwn → list by name (Pwnd count; no MAC over serial)
 │   │
 │   └─ Capture  [WiFi → sub-menu; offensive: handshake / frame capture]
 │         ├─ PMKID ........... sniffpmkid  (→ channel/deauth options)
@@ -97,8 +97,7 @@ Marauder's Mate  [top-level: category submenu]
     ├─ Settings (Mate) .... live toggle screen (see below)
     ├─ SD Card ▸  → sub-menu (see below)
     ├─ Reboot (Mate) ...... Cancel / Reboot confirm → reboot
-    ├─ Help ............... help
-    └─ Scripts ............ → script select/edit
+    └─ Help ............... help
     └─ SD Card  [System → sub-menu; greyed when no card]
           ├─ List SD ...... ls /   [keyboard]
           └─ Update ....... update -s
@@ -119,8 +118,9 @@ change to drive it — mm-82m); works natively on neopixel boards / the C5.
 
 Device Info, Live Scan, AP Detail, AP Attacks, Station List, Station Detail,
 Fox Hunt, Join result, ARP Scan, Port Scan, Beacon Mon, Probe Mon, Deauth Mon,
-LED picker, Settings, Reboot confirm — plus the category submenu and the shared
-per-category / AP-Spoofing renderer (now also used by the SD Card sub-menu).
+Pineapple Mon, Pwnagotchi Mon, LED picker, Settings, Reboot confirm — plus the
+category submenu and the shared per-category / AP-Spoofing renderer (now also
+used by the SD Card sub-menu).
 
 The L3 chain hangs entirely off **Live Scan → AP**: Join → ARP Scan → Port Scan.
 Five sub-menus (WiFi's AP Spoofing, Air Attacks, Detect, Capture; System's SD
@@ -150,6 +150,11 @@ Scan). Confirmed against the ESP32 Marauder source:
 
 ## Retired items
 
+- **Scripts** (the inherited Marauder automation-scripts subsystem: cJSON, the
+  script core/executor/worker, and 8 script scenes) removed. It was the single
+  largest part of the binary (~30 KB of code) and pushed the loaded app to ~99 KB,
+  past what the Flipper heap could hand out contiguously — the app failed to load
+  / relaunch (out of memory). Removing it dropped the loaded size to ~69 KB.
 - **Select** (`select -a/-s/-c`) removed. Selection is now implicit: AP Detail
   and Station Detail call `select` before each attack (`mm_select_target`).
   `select -s` (SSID) was vestigial — the beacon-list attack broadcasts the whole
@@ -206,7 +211,7 @@ On launch the category menu probes the board and greys what isn't usable
 **Greyed** rows carry a suffix and are inert: categories `(no device)` / `(no
 HW)` / `(none)`; SD-gated items `(no SD)`; Upload Wardrive `(no upload)`.
 
-SD-gated items: List SD, Save to flipper sdcard, Update, Scripts, Load Evil
+SD-gated items: List SD, Save to flipper sdcard, Update, Load Evil
 Portal HTML, Wardrive, Upload Wardrive. Upload Wardrive is *also* gated on
 Direct Upload. Dual-band is parsed and stored for the C5 but gates nothing yet.
 

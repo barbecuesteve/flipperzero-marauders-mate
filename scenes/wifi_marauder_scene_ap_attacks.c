@@ -75,7 +75,6 @@ bool wifi_marauder_scene_ap_attacks_on_event(void* context, SceneManagerEvent ev
         app->is_custom_tx_string = false;
         app->focus_console_start = false;
         app->show_stopscan_tip = true;
-        app->script = NULL;
         scene_manager_next_scene(app->scene_manager, WifiMarauderSceneConsoleOutput);
         consumed = true;
     }

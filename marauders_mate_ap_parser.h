@@ -200,6 +200,29 @@ bool mm_deauth_parse_line(const char* line, MMDeauthFrame* out);
 // True if mac is the broadcast address ff:ff:ff:ff:ff:ff (case-insensitive).
 bool mm_mac_is_broadcast(const char* mac);
 
+// One PineScan (rogue-AP / WiFi Pineapple) detection. Firmware line
+// (WiFiScan.cpp): "MAC: <mac> CH: <ch> RSSI: <rssi> DET: <type> SSID: <essid>".
+// DET is one of SUSP_OUI / TAG+SUSP_CAP / OTHER. Distinguished from the very
+// similar multissid line by the " DET: " field.
+typedef struct {
+    char mac[18];
+    char ssid[33]; // essid or "[hidden]"
+    char det[16]; // detection type
+    int channel;
+    int rssi;
+} MMPineScan;
+
+// Parse one pinescan detection line. Returns false if it isn't one.
+bool mm_pinescan_parse_line(const char* line, MMPineScan* out);
+
+// Pwnagotchi beacons print (at least) "Name: <name>" then "Pwnd #: <n>".
+// Custom firmware (see firmware/) also emits "MAC: <mac>" (and Ver/Uptime/
+// Deauth) for a real identity. The parser handles both: the MAC line is simply
+// absent on stock firmware. These extract each line.
+bool mm_pwn_line_name(const char* line, char* out, size_t out_sz);
+bool mm_pwn_line_pwnd(const char* line, int* out);
+bool mm_pwn_line_mac(const char* line, char* out); // out >= 18; validates a MAC
+
 // Direct upload (wardrive -> WiGLE), from info's "Direct Upload: Supported" /
 // "Not Supported". Gates the Upload Wardrive action.
 MMCap mm_info_line_direct_upload(const char* line);

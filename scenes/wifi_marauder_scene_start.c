@@ -148,10 +148,8 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Deauth Frames", {""}, 1, {"deauthmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
     {"Rogue APs", {""}, 1, {"sniffmultissid"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
      MMCatDetect},
-    {"Pineapple", {""}, 1, {"sniffpinescan"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
-     MMCatDetect},
-    {"Pwnagotchi", {""}, 1, {"sniffpwn"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
-     MMCatDetect},
+    {"Pineapple", {""}, 1, {"pinemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
+    {"Pwnagotchi", {""}, 1, {"pwnmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
     {"Capture", {""}, 1, {"capturemenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"PMKID", {""}, 1, {"sniffpmkid"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP, MMCatCapture},
     {"SAE (WPA3)", {""}, 1, {"sniffsae"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
@@ -208,7 +206,6 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Update", {"sd"}, 1, {"update -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSD},
     {"Reboot", {""}, 1, {"rebootconfirm"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP, MMCatSystem},
-    {"Scripts", {""}, 1, {""}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
 };
 
 // Category renderer: the var list shows only items whose category matches
@@ -224,7 +221,7 @@ static char s_labels[NUM_MENU_ITEMS][40];
 // True for items that need the SD card and so are greyed when none is present.
 static bool mm_item_needs_sd(const char* name) {
     return strcmp(name, "List SD") == 0 || strcmp(name, "Update") == 0 ||
-           strcmp(name, "Scripts") == 0 || strcmp(name, "Load Evil Portal HTML file") == 0 ||
+           strcmp(name, "Load Evil Portal HTML file") == 0 ||
            strcmp(name, "Wardrive") == 0 || strcmp(name, "Upload Wardrive") == 0 ||
            strcmp(name, "Karma") == 0; // Karma serves an Evil Portal page from SD
 }
@@ -282,6 +279,17 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
+    // Marauder's Mate: Pineapple / Pwnagotchi detection lists (parsed)
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "pinemon") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartPineappleMon);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "pwnmon") == 0) {
+        view_dispatcher_send_custom_event(
+            app->view_dispatcher, WifiMarauderEventStartPwnagotchiMon);
+        return;
+    }
+
     // Marauder's Mate: drill into a WiFi sub-menu (AP Spoofing / Air Attacks)
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "spoofmenu") == 0) {
         app->sub_category = MMCatSpoof;
@@ -326,13 +334,6 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         // sniffpmkid submenu
         view_dispatcher_send_custom_event(
             app->view_dispatcher, WifiMarauderEventStartSniffPmkidOptions);
-        return;
-    }
-
-    // Select automation script (detect by name, not position)
-    if(strcmp(item->item_string, "Scripts") == 0) {
-        view_dispatcher_send_custom_event(
-            app->view_dispatcher, WifiMarauderEventStartScriptSelect);
         return;
     }
 
@@ -448,10 +449,6 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneSettingsMenu);
-        } else if(event.event == WifiMarauderEventStartScriptSelect) {
-            scene_manager_set_scene_state(
-                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
-            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneScriptSelect);
         } else if(event.event == WifiMarauderEventStartSniffPmkidOptions) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
@@ -473,6 +470,14 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneDeauthMon);
+        } else if(event.event == WifiMarauderEventStartPineappleMon) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderScenePineappleMon);
+        } else if(event.event == WifiMarauderEventStartPwnagotchiMon) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderScenePwnagotchiMon);
         } else if(event.event == WifiMarauderEventStartDeviceInfo) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

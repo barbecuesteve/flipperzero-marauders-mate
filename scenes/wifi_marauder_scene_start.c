@@ -24,8 +24,12 @@ typedef struct {
     MMMenuCategory category; // which protocol section this item lives in
 } WifiMarauderItem;
 
-// NUM_MENU_ITEMS defined in wifi_marauder_app_i.h - if you add an entry here, increment it!
-const WifiMarauderItem items[NUM_MENU_ITEMS] = {
+// Unsized so the compiler counts the rows; the assert below fails the BUILD if
+// NUM_MENU_ITEMS (in wifi_marauder_app_i.h, which sizes selected_option_index[]
+// etc.) drifts out of sync -- otherwise a short count silently leaves a
+// zero-filled trailing entry (category 0 = WiFi, NULL label) that NULL-derefs
+// when the WiFi list renders. Add a row here and bump NUM_MENU_ITEMS together.
+const WifiMarauderItem items[] = {
     {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
@@ -207,6 +211,11 @@ const WifiMarauderItem items[NUM_MENU_ITEMS] = {
     {"Reboot", {""}, 1, {"rebootconfirm"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSystem},
     {"Help", {""}, 1, {"help"}, NO_ARGS, FOCUS_CONSOLE_START, SHOW_STOPSCAN_TIP, MMCatSystem},
 };
+
+// Build breaks here if NUM_MENU_ITEMS doesn't match the table above.
+_Static_assert(
+    (sizeof(items) / sizeof(items[0])) == NUM_MENU_ITEMS,
+    "NUM_MENU_ITEMS is out of sync with items[]");
 
 // Category renderer: the var list shows only items whose category matches
 // app->menu_category. s_row_to_flat maps a displayed row back to its flat

@@ -29,7 +29,7 @@ static void pine_label(const MMMonRec* r, char* buf, size_t sz) {
 
 static const MMMonDef s_def = {
     .cmd = "sniffpinescan",
-    .waiting = "Scanning for Pineapples...",
+    .waiting = "Pineapple scan...",
     .header_fmt = "Pineapples: %d",
     .chanhop = true,
     .sort_by_metric = true,

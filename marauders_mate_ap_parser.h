@@ -215,6 +215,19 @@ typedef struct {
 // Parse one pinescan detection line. Returns false if it isn't one.
 bool mm_pinescan_parse_line(const char* line, MMPineScan* out);
 
+// One multi-SSID (rogue AP: karma/mana) detection. Firmware line (WiFiScan.cpp):
+// "MAC: <mac> CH: <ch> RSSI: <rssi> SSIDs: <count> SSID: <essid>". The " SSIDs: "
+// count field distinguishes it from the very similar pinescan line (" DET: ").
+typedef struct {
+    char mac[18];
+    char ssid[33];
+    int channel;
+    int rssi;
+    int ssid_count; // distinct SSIDs this BSSID has beaconed
+} MMRogueAp;
+
+bool mm_multissid_parse_line(const char* line, MMRogueAp* out);
+
 // Pwnagotchi beacons print (at least) "Name: <name>" then "Pwnd #: <n>".
 // Custom firmware (see firmware/) also emits "MAC: <mac>" (and Ver/Uptime/
 // Deauth) for a real identity. The parser handles both: the MAC line is simply

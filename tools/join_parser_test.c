@@ -181,6 +181,23 @@ int main(void) {
         !mm_pinescan_parse_line("MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -55", &ps),
         "multissid line not a pinescan");
 
+    // --- multissid (rogue AP) parser ----------------------------------------
+    MMRogueAp ra;
+    CHECK(
+        mm_multissid_parse_line(
+            "MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -55 SSIDs: 7 SSID: FreeWiFi", &ra),
+        "rogue line parses");
+    CHECK(strcmp(ra.mac, "aa:bb:cc:dd:ee:ff") == 0, "rogue mac");
+    CHECK(ra.channel == 6, "rogue channel");
+    CHECK(ra.rssi == -55, "rogue rssi");
+    CHECK(ra.ssid_count == 7, "rogue ssid count");
+    CHECK(strcmp(ra.ssid, "FreeWiFi") == 0, "rogue essid (not the count field)");
+    // a pinescan line has no " SSIDs: " -> must be rejected as a rogue line
+    CHECK(
+        !mm_multissid_parse_line(
+            "MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -55 DET: SUSP_OUI SSID: EvilAP", &ra),
+        "pinescan line not a rogue line");
+
     // --- pwnagotchi parser ---------------------------------------------------
     char pwn_name[33];
     int pwnd = -1;

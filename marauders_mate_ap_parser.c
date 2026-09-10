@@ -790,6 +790,30 @@ bool mm_pinescan_parse_line(const char* line, MMPineScan* out) {
     return true;
 }
 
+bool mm_multissid_parse_line(const char* line, MMRogueAp* out) {
+    if(!line || !out) return false;
+    const char* mac = mm_ci_strstr(line, "mac: ");
+    const char* cnt = mm_ci_strstr(line, " ssids: "); // distinguishes from pinescan
+    if(!mac || !cnt) return false;
+    const char* ch = mm_ci_strstr(line, " ch: ");
+    const char* rssi = mm_ci_strstr(line, " rssi: ");
+    const char* ssid = mm_ci_strstr(line, " ssid: "); // essid (won't match " ssids: ")
+
+    char tmp[18];
+    mm_copy_field(mac + 5, mac + 5 + 17, tmp, sizeof(tmp));
+    if(!mm_ap_is_bssid(tmp)) return false;
+    memcpy(out->mac, tmp, 18);
+    out->channel = ch ? (int)strtol(ch + 5, NULL, 10) : 0;
+    out->rssi = rssi ? (int)strtol(rssi + 7, NULL, 10) : 0;
+    out->ssid_count = (int)strtol(cnt + 8, NULL, 10);
+    if(ssid) {
+        mm_copy_field(ssid + 7, NULL, out->ssid, sizeof(out->ssid));
+    } else {
+        out->ssid[0] = '\0';
+    }
+    return true;
+}
+
 bool mm_pwn_line_name(const char* line, char* out, size_t out_sz) {
     if(!line || !out) return false;
     const char* p = line;

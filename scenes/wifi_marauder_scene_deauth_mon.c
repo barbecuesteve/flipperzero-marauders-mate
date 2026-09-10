@@ -24,7 +24,7 @@ static void deauth_label(const MMMonRec* r, char* buf, size_t sz) {
 
 static const MMMonDef s_def = {
     .cmd = "sniffdeauth",
-    .waiting = "Listening for deauths...",
+    .waiting = "Deauth scan...",
     .header_fmt = "Deauth: %d flows",
     .chanhop = true,
     .sort_by_metric = false,

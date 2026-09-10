@@ -22,7 +22,7 @@ static void probe_label(const MMMonRec* r, char* buf, size_t sz) {
 
 static const MMMonDef s_def = {
     .cmd = "sniffprobe",
-    .waiting = "Listening for probes...",
+    .waiting = "Probe scan...",
     .header_fmt = "Probes: %d clients",
     .chanhop = true,
     .sort_by_metric = false,

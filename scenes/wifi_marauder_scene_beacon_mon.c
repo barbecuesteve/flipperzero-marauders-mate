@@ -18,7 +18,7 @@ static void beacon_label(const MMMonRec* r, char* buf, size_t sz) {
 
 static const MMMonDef s_def = {
     .cmd = "sniffbeacon",
-    .waiting = "Listening for beacons...",
+    .waiting = "Beacon scan...",
     .header_fmt = "Beacons: %d APs",
     .chanhop = true,
     .sort_by_metric = false,

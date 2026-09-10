@@ -150,8 +150,7 @@ const WifiMarauderItem items[] = {
     // frames for offline work). Both are WiFi sub-menus (see render_category).
     {"Detect", {""}, 1, {"detectmenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Deauth Frames", {""}, 1, {"deauthmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
-    {"Rogue APs", {""}, 1, {"sniffmultissid"}, NO_ARGS, FOCUS_CONSOLE_END, SHOW_STOPSCAN_TIP,
-     MMCatDetect},
+    {"Rogue APs", {""}, 1, {"roguemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
     {"Pineapple", {""}, 1, {"pinemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
     {"Pwnagotchi", {""}, 1, {"pwnmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatDetect},
     {"Capture", {""}, 1, {"capturemenu"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
@@ -285,6 +284,10 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     // Marauder's Mate: deauth/disassoc monitor (parsed sniffdeauth)
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "deauthmon") == 0) {
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartDeauthMon);
+        return;
+    }
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "roguemon") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartRogueMon);
         return;
     }
 
@@ -479,6 +482,10 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneDeauthMon);
+        } else if(event.event == WifiMarauderEventStartRogueMon) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneRogueMon);
         } else if(event.event == WifiMarauderEventStartPineappleMon) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

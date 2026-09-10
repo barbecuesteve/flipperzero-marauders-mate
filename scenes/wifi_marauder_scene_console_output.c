@@ -8,16 +8,21 @@ char* _wifi_marauder_get_prefix_from_cmd(const char* command) {
     return prefix;
 }
 
-bool _wifi_marauder_is_saving_enabled(WifiMarauderApp* app) {
-    if(!app->ok_to_save_pcaps) {
-        return false;
-    }
-    // If it is a sniff/wardrive/btwardrive/evilportal function
+// An explicit capture: a sniff/wardrive/btwardrive/evilportal command. Only
+// these write anything to the SD card -- so ordinary commands (join, scan,
+// attack, info, ...) never leave a file behind. This is the security boundary:
+// `join` echoes the WiFi password, and it is NOT a capture, so it is never
+// logged to disk.
+bool _wifi_marauder_is_capture_cmd(WifiMarauderApp* app) {
     return app->is_command && app->selected_tx_string &&
            (strncmp("sniff", app->selected_tx_string, strlen("sniff")) == 0 ||
             strncmp("wardrive", app->selected_tx_string, strlen("wardrive")) == 0 ||
             strncmp("btwardrive", app->selected_tx_string, strlen("btwardrive")) == 0 ||
             strncmp("evilportal", app->selected_tx_string, strlen("evilportal")) == 0);
+}
+
+bool _wifi_marauder_is_saving_enabled(WifiMarauderApp* app) {
+    return app->ok_to_save_pcaps && _wifi_marauder_is_capture_cmd(app);
 }
 
 void wifi_marauder_console_output_handle_rx_data_cb(uint8_t* buf, size_t len, void* context) {
@@ -106,7 +111,9 @@ void wifi_marauder_scene_console_output_on_enter(void* context) {
 
         // Create files *before* sending command
         // (it takes time to iterate through the directory)
-        if(app->ok_to_save_logs) {
+        // Only log to SD during an explicit capture -- never for ordinary
+        // commands, so password-bearing output (e.g. join) never hits disk.
+        if(app->ok_to_save_logs && _wifi_marauder_is_capture_cmd(app)) {
             char* resolved_path = sequential_file_resolve_path(
                 app->storage, MARAUDER_APP_FOLDER_LOGS, prefix, "log");
             if(resolved_path != NULL) {

@@ -30,9 +30,9 @@ typedef struct {
 // zero-filled trailing entry (category 0 = WiFi, NULL label) that NULL-derefs
 // when the WiFi list renders. Add a row here and bump NUM_MENU_ITEMS together.
 const WifiMarauderItem items[] = {
-    {"Live Scan (Mate)", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
-    {"Beacon Mon (Mate)", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
-    {"Probe Mon (Mate)", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Live Scan", {""}, 1, {"scanlive"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Beacon Mon", {""}, 1, {"beaconmon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
+    {"Probe Mon", {""}, 1, {"probemon"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatWifi},
     {"Spoof SSIDs", // the SSID list broadcast by Beacon Spam / Evil Portal
      {"add rand", "add name", "remove"},
      3,

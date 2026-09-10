@@ -18,7 +18,7 @@ Marauder's Mate  [top-level: category submenu]
 │     • "No Marauder detected" + Re-detect when nothing answers
 │
 ├─ WiFi
-│   ├─ Live Scan (Mate) ............... clearlist+scanall, live deduped AP list
+│   ├─ Live Scan ....................... clearlist+scanall, live deduped AP list
 │   │     └─ [select AP] → AP Detail (Mate)
 │   │           • * Connected (joined) + Disconnect (stopscan -f)  when on this AP
 │   │           • Join ............... in lieu of Disconnect when not on this AP
@@ -41,8 +41,8 @@ Marauder's Mate  [top-level: category submenu]
 │   │                 ├─ Quiet ....... attack -t quiet    (impersonate this AP)
 │   │                 ├─ Sniff ....... sniffraw
 │   │                 └─ PMKID ....... sniffpmkid
-│   ├─ Beacon Mon (Mate) ............. sniffbeacon → APs by beacon count
-│   ├─ Probe Mon (Mate) .............. sniffprobe → probe requests
+│   ├─ Beacon Mon ................... sniffbeacon → APs by beacon count
+│   ├─ Probe Mon ...................... sniffprobe → probe requests
 │   ├─ Set STA MAC ......... randstamac / clonestamac -s
 │   ├─ AP Spoofing ▸  → sub-menu (see below)
 │   ├─ Air Attacks ▸  → sub-menu (see below)

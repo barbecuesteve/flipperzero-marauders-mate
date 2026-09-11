@@ -692,12 +692,19 @@ bool mm_mac_is_broadcast(const char* mac) {
     return true;
 }
 
+// True if c terminates a MAC token (whitespace or end-of-string). Fixed-offset
+// MAC readers use this to reject an over-length token like aa:bb:cc:dd:ee:ffZZ.
+static bool mm_is_mac_delim(char c) {
+    return c == '\0' || c == ' ' || c == '\r' || c == '\n' || c == '\t';
+}
+
 // Copy a MAC token starting at *p (stops at space/end); validate and store in
 // out[18]. Returns the char after the token, or NULL if it isn't a MAC.
 static const char* mm_take_mac(const char* p, char* out) {
     int n = 0;
     while(p[n] && p[n] != ' ' && p[n] != '\r' && p[n] != '\n' && n < 17) n++;
     if(n != 17) return NULL;
+    if(!mm_is_mac_delim(p[17])) return NULL; // reject 17 valid chars + trailing junk
     char tmp[18];
     memcpy(tmp, p, 17);
     tmp[17] = '\0';
@@ -749,6 +756,7 @@ bool mm_pinescan_parse_line(const char* line, MMPineScan* out) {
         char tmp[18];
         mm_copy_field(mac + 5, mac + 5 + 17, tmp, sizeof(tmp));
         if(!mm_ap_is_bssid(tmp)) return false;
+        if(!mm_is_mac_delim((mac + 5)[17])) return false; // reject over-length MAC
         memcpy(out->mac, tmp, 18);
     }
     out->channel = ch ? (int)strtol(ch + 5, NULL, 10) : 0;
@@ -774,6 +782,7 @@ bool mm_multissid_parse_line(const char* line, MMRogueAp* out) {
     char tmp[18];
     mm_copy_field(mac + 5, mac + 5 + 17, tmp, sizeof(tmp));
     if(!mm_ap_is_bssid(tmp)) return false;
+    if(!mm_is_mac_delim((mac + 5)[17])) return false; // reject over-length MAC
     memcpy(out->mac, tmp, 18);
     out->channel = ch ? (int)strtol(ch + 5, NULL, 10) : 0;
     out->rssi = rssi ? (int)strtol(rssi + 7, NULL, 10) : 0;
@@ -811,6 +820,7 @@ bool mm_pwn_line_mac(const char* line, char* out) {
     char tmp[18];
     mm_copy_field(p + 5, p + 5 + 17, tmp, sizeof(tmp));
     if(!mm_ap_is_bssid(tmp)) return false;
+    if(!mm_is_mac_delim((p + 5)[17])) return false; // reject over-length MAC
     memcpy(out, tmp, 18);
     return true;
 }

@@ -82,6 +82,9 @@ static void wifi_marauder_app_tick_event_callback(void* context) {
 
 WifiMarauderApp* wifi_marauder_app_alloc() {
     WifiMarauderApp* app = malloc(sizeof(WifiMarauderApp));
+    // pvPortMalloc does not zero memory; is_writing_log/is_writing_pcap and
+    // other flags are read on first console entry before being set.
+    memset(app, 0, sizeof(WifiMarauderApp));
 
     app->gui = furi_record_open(RECORD_GUI);
     app->dialogs = furi_record_open(RECORD_DIALOGS);
@@ -335,10 +338,13 @@ void mm_apply_info_caps(WifiMarauderApp* app, const char* text) {
     }
     app->device_state = present ? MMDevPresent : MMDevAbsent;
     if(present) {
-        app->sd_state = sd;
-        app->gps_state = gps;
-        app->direct_upload_state = upload;
-        app->dual_band_state = dual;
+        // Only overwrite a cap when this reply actually reported it; a Re-detect
+        // whose reply omits (or the parser misses) a line must not clobber a
+        // previously-known state with Unknown.
+        if(sd != MMCapUnknown) app->sd_state = sd;
+        if(gps != MMCapUnknown) app->gps_state = gps;
+        if(upload != MMCapUnknown) app->direct_upload_state = upload;
+        if(dual != MMCapUnknown) app->dual_band_state = dual;
         if(bt != MMCapUnknown) app->bt_state = (bt == MMCapYes) ? MMBtYes : MMBtNo;
     }
 }

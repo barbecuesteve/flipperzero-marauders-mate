@@ -126,9 +126,6 @@ static int32_t uart_worker(void* context) {
         }
     }
 
-    furi_stream_buffer_free(uart->rx_stream);
-    furi_stream_buffer_free(uart->pcap_stream);
-
     return 0;
 }
 
@@ -141,6 +138,9 @@ WifiMarauderUart* wifi_marauder_uart_init(
     FuriHalSerialId channel,
     const char* thread_name) {
     WifiMarauderUart* uart = malloc(sizeof(WifiMarauderUart));
+    // pvPortMalloc does not zero memory; the RX callbacks are read by the IRQ
+    // that we arm below, possibly before a scene installs them.
+    memset(uart, 0, sizeof(WifiMarauderUart));
 
     uart->app = app;
     uart->rx_stream = furi_stream_buffer_alloc(RX_BUF_SIZE, 1);
@@ -166,12 +166,19 @@ WifiMarauderUart* wifi_marauder_usart_init(WifiMarauderApp* app) {
 void wifi_marauder_uart_free(WifiMarauderUart* uart) {
     furi_assert(uart);
 
+    // Disarm the RX IRQ first so no byte arriving mid-teardown can touch the
+    // thread or stream buffers we are about to free (no MMU: a stray callback
+    // reboots the Flipper). Order: stop-IRQ -> join-thread -> free-streams.
+    furi_hal_serial_async_rx_stop(uart->serial_handle);
+    furi_hal_serial_deinit(uart->serial_handle);
+    furi_hal_serial_control_release(uart->serial_handle);
+
     furi_thread_flags_set(furi_thread_get_id(uart->rx_thread), WorkerEvtStop);
     furi_thread_join(uart->rx_thread);
     furi_thread_free(uart->rx_thread);
 
-    furi_hal_serial_deinit(uart->serial_handle);
-    furi_hal_serial_control_release(uart->serial_handle);
+    furi_stream_buffer_free(uart->rx_stream);
+    furi_stream_buffer_free(uart->pcap_stream);
 
     free(uart);
 }

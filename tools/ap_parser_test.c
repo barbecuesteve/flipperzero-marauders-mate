@@ -85,6 +85,40 @@ int main(void) {
 
     free(text);
 
+    // --- fixed-offset MAC parsers must reject 17 valid chars + trailing junk ---
+    {
+        MMPineScan ps;
+        CHECK(
+            mm_pinescan_parse_line("MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -50 DET: OTHER SSID: X", &ps),
+            "pinescan: valid MAC parses");
+        CHECK(strcmp(ps.mac, "aa:bb:cc:dd:ee:ff") == 0, "pinescan mac: got '%s'", ps.mac);
+        CHECK(
+            !mm_pinescan_parse_line(
+                "MAC: aa:bb:cc:dd:ee:ffZZ CH: 6 RSSI: -50 DET: OTHER SSID: X", &ps),
+            "pinescan: over-length MAC rejected");
+
+        MMRogueAp ra;
+        CHECK(
+            mm_multissid_parse_line("MAC: aa:bb:cc:dd:ee:ff CH: 6 RSSI: -50 SSIDs: 3 SSID: X", &ra),
+            "multissid: valid MAC parses");
+        CHECK(
+            !mm_multissid_parse_line(
+                "MAC: aa:bb:cc:dd:ee:ffZZ CH: 6 RSSI: -50 SSIDs: 3 SSID: X", &ra),
+            "multissid: over-length MAC rejected");
+
+        char mac[18];
+        CHECK(mm_pwn_line_mac("MAC: aa:bb:cc:dd:ee:ff", mac), "pwn: valid MAC parses");
+        CHECK(!mm_pwn_line_mac("MAC: aa:bb:cc:dd:ee:ffZZ", mac), "pwn: over-length MAC rejected");
+
+        MMDeauthFrame df;
+        CHECK(
+            mm_deauth_parse_line("-50 Ch: 6 aa:bb:cc:dd:ee:ff -> ff:ff:ff:ff:ff:ff", &df),
+            "deauth: valid MACs parse");
+        CHECK(
+            !mm_deauth_parse_line("-50 Ch: 6 aa:bb:cc:dd:ee:ffZZ -> ff:ff:ff:ff:ff:ff", &df),
+            "deauth: over-length src MAC rejected");
+    }
+
     if(failures == 0) {
         printf("OK: all AP-parser tests passed\n");
         return 0;

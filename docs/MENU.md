@@ -1,7 +1,9 @@
 # Marauder's Mate — function map
 
-The app's full menu/scene tree. Parsed custom scenes are marked **(Mate)**;
-everything else sends a raw ESP32 Marauder command to the console.
+The app's full menu/scene tree. Parsed custom scenes are marked **(Mate)** in
+this document; everything else sends a raw ESP32 Marauder command to the
+console. The **(Mate)** tag is a documentation annotation only — it is not part
+of the on-screen item labels (the label suffix was dropped in `ac92ee9`).
 
 Menu structure: a top-level **category submenu** (`scenes/wifi_marauder_scene_categories.c`)
 → a per-category renderer (`scenes/wifi_marauder_scene_start.c`, filtered by each

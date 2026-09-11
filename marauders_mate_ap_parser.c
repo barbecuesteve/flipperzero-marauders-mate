@@ -368,34 +368,6 @@ void mm_sanitize_nuls(uint8_t* buf, size_t len) {
     }
 }
 
-bool mm_listi_parse_ip(const char* line, char* ip_out) {
-    if(!line || !ip_out) return false;
-    const char* p = line;
-    while(*p == ' ' || *p == '\t') p++;
-    if(*p != '[') return false;
-    char* end;
-    strtol(p + 1, &end, 10);
-    if(end == p + 1 || *end != ']') return false;
-    p = end + 1;
-    while(*p == ' ') p++;
-
-    size_t n = strlen(p);
-    while(n > 0 && (p[n - 1] == '\r' || p[n - 1] == '\n' || p[n - 1] == ' ')) n--;
-    if(n == 0 || n >= 16) return false;
-    int dots = 0;
-    for(size_t i = 0; i < n; i++) {
-        char c = p[i];
-        if(c == '.')
-            dots++;
-        else if(c < '0' || c > '9')
-            return false;
-    }
-    if(dots != 3) return false;
-    memcpy(ip_out, p, n);
-    ip_out[n] = '\0';
-    return true;
-}
-
 bool mm_hostscan_parse_ip(const char* line, char* ip_out) {
     if(!line || !ip_out) return false;
     const char* p = line;

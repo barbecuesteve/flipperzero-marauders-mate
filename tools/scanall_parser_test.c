@@ -238,18 +238,6 @@ int main(void) {
     }
 
 
-    // --- list -i host IP parsing ---
-    {
-        char ip[16];
-        CHECK(mm_listi_parse_ip("[0] 192.168.0.1", ip) && strcmp(ip, "192.168.0.1") == 0,
-              "listi ip 0");
-        CHECK(mm_listi_parse_ip("[24] 192.168.0.163", ip) && strcmp(ip, "192.168.0.163") == 0,
-              "listi ip 24");
-        CHECK(!mm_listi_parse_ip("[0] Homestead -56", ip), "listi rejects non-IP");
-        CHECK(!mm_listi_parse_ip("0 selected", ip), "listi rejects 'selected'");
-        CHECK(!mm_listi_parse_ip("> #list -i", ip), "listi rejects prompt");
-    }
-
 
     // --- sniffbeacon line parsing (no trailing metadata; ESSID to EOL) ---
     {

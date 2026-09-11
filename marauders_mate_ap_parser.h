@@ -116,10 +116,6 @@ bool mm_listc_parse_station(const char* line, int* sel_index, char* mac_out);
 // "> " prompt. Sets *rssi. Returns true only on a line carrying an RSSI value.
 bool mm_foxhunt_parse_rssi(const char* line, int* rssi);
 
-// Parse a `list -i` host line ("[<n>] <IPv4>"). Writes the dotted-quad IP into
-// ip_out (>= 16 bytes). Returns true only on a valid host row.
-bool mm_listi_parse_ip(const char* line, char* ip_out);
-
 // Parse a streamed host-discovery line: a bare "<IPv4>" (tolerating a leading
 // "> " prompt), as arpscan/pingscan print each active host. Rejects lines that
 // carry an IP after other text (e.g. pingscan's "IP address:/Gateway:/MAC:"

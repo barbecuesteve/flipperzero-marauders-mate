@@ -1,7 +1,6 @@
 #pragma once
 
 #include <gui/view.h>
-#include "wifi_marauder_validators.h"
 
 #ifdef __cplusplus
 extern "C" {

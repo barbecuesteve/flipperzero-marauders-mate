@@ -58,20 +58,101 @@ This protocol applies when ending a Beads implementation workflow. It is subordi
 <!-- END BEADS INTEGRATION -->
 
 
-## Build & Test
+<!-- BEGIN PROJECT ORIENTATION (hand-maintained; not managed by bd) -->
+## Project orientation (Marauder's Mate)
 
-_Add your build and test commands here_
+**What this is.** A Flipper Zero `.fap` (C, FreeRTOS) that front-ends the ESP32
+**Marauder** firmware over UART: it parses Marauder's raw serial CLI output into
+navigable/parsed UI. GPLv3 fork of `0xchocolate/flipperzero-wifi-marauder`.
+**Read `docs/MENU.md` first** — it's the full, current menu/scene tree.
+
+## Build, test, flash
+
+From the repo root:
 
 ```bash
-# Example:
-# npm install
-# npm test
+.venv/bin/ufbt            # build -> dist/marauders_mate.fap  (Flipper API 87.1)
+.venv/bin/ufbt launch     # build + flash + run on a connected Flipper
+sh tools/run_tests.sh     # host-side C unit tests for the parsers
 ```
 
-## Architecture Overview
+- `ufbt launch` needs the Flipper's serial port free; a held CLI/log session
+  gives "Failed to find connected Flipper" — retry after closing it.
+- The clang/LSP "`gui/scene_manager.h` not found" errors in-editor are noise
+  (no ufbt include paths). Trust the `ufbt` build (`APPCHK` = success), not the
+  editor diagnostics.
 
-_Add a brief overview of your project architecture_
+## ESP32 Marauder firmware (ground truth)
 
-## Conventions & Patterns
+The firmware we talk to is checked out at **`/Users/barbecuesteve/Code/ESP32Marauder/`**.
+It is the authoritative source for **every serial format and command behavior** —
+read it to confirm formats rather than guessing or capturing on-device. Key files:
+`esp32_marauder/CommandLine.cpp` (command dispatch), `WiFiScan.cpp` (scan/sniff
+output + `RunInfo`), `configs.h` (per-board `HAS_*` capability defines; this board
+is `MARAUDER_FLIPPER` = ESP32-S2, WiFi-only, no BT). Remotes: `origin` = upstream
+(justcallmekoko) — the PR base, **don't push to it**; `fork` =
+`barbecuesteve/ESP32Marauder` — push patch branches here to open PRs upstream.
 
-_Add your project-specific conventions here_
+**Firmware patch:** `firmware/marauder-mate.patch` adds capability lines to `info`
+(Bluetooth/GPS/Direct Upload/Dual Band) and pwnagotchi MAC/ver/uptime/deauth. It
+is **applied in the ESP working tree but NOT committed/flashed** — deferred until
+the ESP Arduino toolchain is set up (C5 time). The app degrades gracefully on
+stock firmware. `mm-82m` tracks a further LED fix (not yet written). See
+`firmware/README.md`. To PR it: branch from `master`, commit, push to `fork`,
+open a PR against upstream.
+
+## Architecture cheat-sheet
+
+- **Menu:** top-level category submenu (`scenes/wifi_marauder_scene_categories.c`)
+  → per-category renderer over one flat `items[]` table in
+  `scenes/wifi_marauder_scene_start.c`, filtered by each item's `MMMenuCategory`.
+  `items[]` is unsized with a `_Static_assert(... == NUM_MENU_ITEMS)` — add a row
+  **and** bump `NUM_MENU_ITEMS` (in `wifi_marauder_app_i.h`) together or the build
+  fails. (A short count used to silently NULL-deref and reboot.)
+- **Sub-menus** (AP Spoofing, Air Attacks, Detect, Capture, SD Card) share
+  `wifi_marauder_render_category` via sentinel command strings
+  (`spoofmenu`/`airmenu`/`detectmenu`/`capturemenu`/`sdmenu`) that set
+  `app->sub_category`. LED/Settings/Reboot open dedicated scenes via
+  `ledpicker`/`settingsui`/`rebootconfirm` sentinels.
+- **Live monitors** (Beacon/Probe/Deauth/Pineapple/Pwnagotchi) share one engine,
+  `wifi_marauder_monitor.{c,h}`; each scene is a thin `MMMonDef` config (command,
+  headers, per-line `parse`, row `label`). To add one: write a parser + host test,
+  then a ~50-line scene config.
+- **Parsers** live in `marauders_mate_ap_parser.{c,h}` — pure C, no furi/GUI,
+  host-tested via `tools/run_tests.sh` (`tools/*_test.c`). Add a parser + test for
+  new serial output instead of parsing inline.
+- **Capability detection:** at launch `categories.c` probes `info` (+ a `sniffbt`
+  fallback for BT), sets `device_state`/`sd_state`/`bt_state`/`gps_state`, and
+  greys unusable sections. `mm_apply_info_caps()` (`wifi_marauder_app.c`) parses
+  the reply; Device Info → Re-detect re-runs it.
+
+## Platform gotchas (learned the hard way)
+
+- `scene_manager_next_scene()` **calls the current scene's `on_exit`** on a
+  forward push — don't tear down shared state there.
+- `submenu_get/set_selected_item()` act on the item **value** (the uint32_t passed
+  to `submenu_add_item`), NOT the row position.
+- `variable_item_list_add()` does **not** copy the label — keep it alive (static
+  buffer). `submenu_add_item()` **does** copy.
+- The `.fap` loads into a contiguous RAM block (~66 KB now). A too-large app fails
+  to load ("out of memory"), worst on relaunch — watch code size.
+- No MMU on the STM32: any app fault (NULL deref, etc.) reboots the whole Flipper.
+  Favor defensive code and compile-time guards.
+
+## Conventions
+
+- **Security:** the WiFi join password is typed on-device and must never be stored
+  in committed files or shown to the assistant. Real `networks.txt` is gitignored
+  (only `networks.txt.example` with placeholders is committed). Never commit real
+  neighbor SSIDs/BSSIDs/device MACs — sanitize to synthetic. Console logs write to
+  SD **only during an explicit capture** (sniff/wardrive/evilportal), never for
+  ordinary commands (e.g. `join`, which echoes the password).
+- The upstream **automation-scripts** subsystem (cJSON + script scenes) was
+  removed for size — don't reintroduce it.
+- **Git:** conservative — do not commit or push without an explicit request. Push
+  to both remotes: `origin` (GitHub) and `hobson` (local). Commit trailer:
+  `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Verify serial formats/behaviors against the ESP32 source above; measure or
+  instrument on-device rather than guessing.
+<!-- END PROJECT ORIENTATION -->
+

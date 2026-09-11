@@ -41,4 +41,7 @@ board's 3-GPIO status LED (`HAS_FLIPPER_LED`) so the LED colour picker works on
 that board — see bead `mm-82m`.
 
 The patch targets the upstream tree (`justcallmekoko/ESP32Marauder`); the local
-clone at `~/Code/ESP32Marauder` also carries the change in its working tree.
+clone at `~/Code/ESP32Marauder` also carries the change in its working tree. That
+clone has a fork remote (`fork` = `barbecuesteve/ESP32Marauder`) for opening a PR:
+branch from `master`, commit the change, push to `fork`, and PR against upstream.
+`origin` there is upstream — don't push to it.

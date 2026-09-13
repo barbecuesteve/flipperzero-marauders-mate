@@ -69,9 +69,9 @@ int main(void) {
           "ap->sta line should parse");
     CHECK(strcmp(apb, "02:00:00:00:00:04") == 0 && strcmp(sta, "01:00:5e:7f:ff:fa") == 0,
           "ap->sta fields: ap='%s' sta='%s'", apb, sta);
-    CHECK(mm_scanall_parse_station("17: sta: 48:e1:e9:e7:48:0d -> ap: 02:00:00:00:00:0b", apb, sta),
+    CHECK(mm_scanall_parse_station("17: sta: 02:00:00:00:01:02 -> ap: 02:00:00:00:00:0b", apb, sta),
           "sta->ap line should parse");
-    CHECK(strcmp(apb, "02:00:00:00:00:0b") == 0 && strcmp(sta, "48:e1:e9:e7:48:0d") == 0,
+    CHECK(strcmp(apb, "02:00:00:00:00:0b") == 0 && strcmp(sta, "02:00:00:00:01:02") == 0,
           "sta->ap fields: ap='%s' sta='%s'", apb, sta);
 
     // --- classification ---

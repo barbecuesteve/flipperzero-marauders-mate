@@ -88,7 +88,7 @@ bool wifi_marauder_scene_settings_init_on_event(void* context, SceneManagerEvent
                    FSAM_WRITE,
                    FSOM_CREATE_ALWAYS)) {
                 const char* ok = app->ok_to_save_pcaps ? Y : N;
-                storage_file_write(app->save_pcap_setting_file, ok, sizeof(ok));
+                storage_file_write(app->save_pcap_setting_file, ok, 1);
             } else {
                 dialog_message_show_storage_error(app->dialogs, "Cannot save settings");
             }
@@ -103,7 +103,7 @@ bool wifi_marauder_scene_settings_init_on_event(void* context, SceneManagerEvent
                    FSAM_WRITE,
                    FSOM_CREATE_ALWAYS)) {
                 const char* ok = app->ok_to_save_logs ? Y : N;
-                storage_file_write(app->save_logs_setting_file, ok, sizeof(ok));
+                storage_file_write(app->save_logs_setting_file, ok, 1);
             } else {
                 dialog_message_show_storage_error(app->dialogs, "Cannot save settings");
             }

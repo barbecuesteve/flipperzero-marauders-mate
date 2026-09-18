@@ -24,7 +24,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (46)
+#define NUM_MENU_ITEMS (47)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {
@@ -221,6 +221,11 @@ struct WifiMarauderApp {
     int fox_ap_arg; // AP select index for the foxhunt command
     int fox_sta_arg; // station select index (station hunt only)
     char fox_title[MM_AP_NAME_MAX]; // label shown on the meter
+
+    // Marauder's Mate: GPS Data live panel (parsed `gpsdata` stream)
+    MMGpsFix gps_fix; // accumulated fix fields (labels vary by reply kind)
+    bool gps_have; // any field has arrived (else "Acquiring...")
+    int gps_ticks; // redraw throttle counter
 
     // Marauder's Mate: L3 host discovery
     char hosts[MM_HOST_MAX][16]; // discovered host IPs (dotted quad)

@@ -29,3 +29,6 @@ splash_resized.png
 *.db
 .beads-credential-key
 .beads/proxieddb/
+
+# Built ESP firmware artifacts (regenerate with firmware/build_c5.sh)
+firmware/build/

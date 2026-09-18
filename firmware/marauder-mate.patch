@@ -75,7 +75,7 @@ index d0b6bc7..83f418b 100644
 +    // version/uptime/deauth. Emit these *before* "Pwnd #:" so a parser that
 +    // commits a record on the Pwnd line captures them; stock clients ignore them.
 +    char pwn_mac[] = "00:00:00:00:00:00";
-+    getMAC(pwn_mac, frame, 10);
++    getMAC(pwn_mac, (uint8_t*)frame, 10);
 +    Serial.print(F("MAC: "));
 +    Serial.println(pwn_mac);
 +    Serial.print(F("Ver: "));

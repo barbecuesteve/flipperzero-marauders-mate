@@ -56,7 +56,35 @@ takes effect after reflashing with this patch. The app still sends plain
 `wardrive`; switching it to `-w` (or adding a "WiFi-only" option) is a follow-up
 once the firmware is reflashed.
 
-## Apply + build
+## Building the patched C5 image (`update.bin`)
+
+`build_c5.sh` builds a patched **`MARAUDER_C5`** image and emits `update.bin` —
+the app binary the firmware's `update -s` reads from an SD card to self-flash
+(see `docs/FIRMWARE.md`). It mirrors the upstream CI recipe for the
+ESP32-C5-DevKitC-1 (arduino-cli, core `esp32:esp32@3.3.4`, FQBN
+`esp32c5:FlashSize=8M,PartitionScheme=default_8MB,PSRAM=enabled`, the pinned
+library set, the `platform.txt` `-Wl,-zmuldefs` / `-fno-exceptions` fixups, and
+`-DMARAUDER_C5`).
+
+```sh
+# in a clean ESP32Marauder checkout (e.g. a worktree at the target tag)
+git apply /path/to/Flipper/firmware/marauder-mate.patch
+git apply /path/to/Flipper/firmware/wardrive-coexist.patch
+/path/to/Flipper/firmware/build_c5.sh "$PWD" /path/to/output
+# -> output/update.bin   (copy to the C5's SD root, then `stopscan; update -s`)
+```
+
+**Verified once (2026-09):** a `v1.17.0 + both patches` build compiles clean
+(app image ~1.86 MB, 55% of flash) and the image carries the version, the
+`ESP32-C5 DevKit` hardware string, and the capability lines. A prebuilt
+`firmware/build/update.bin` is kept locally for the pending SD card
+(gitignored — regenerate with the script).
+
+Note: `marauder-mate.patch`'s pwnagotchi hunk needed a `getMAC(pwn_mac,
+(uint8_t*)frame, 10)` const-cast to compile (it had never been built before the
+toolchain was set up); the patch now carries the fix.
+
+## Apply + build (patches only)
 
 ```sh
 cd /path/to/ESP32Marauder

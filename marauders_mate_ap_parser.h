@@ -249,3 +249,147 @@ typedef enum {
 
 // Classify a (non-noise) join-output line as progress/success/failure.
 MMJoinLineType mm_join_classify(const char* line);
+
+// ===========================================================================
+// GPS support (v1.10.2 on the ESP32-C5 DevKit; formats confirmed on device).
+//
+// Three serial shapes carry GPS, all built here:
+//
+//   1. `gpsdata`  -- a repeating multi-line block:
+//        ==== GPS Data ====
+//          Good Fix: Yes
+//              Text: ANTENNA OK
+//        Satellites: 9
+//          Accuracy: 4.75
+//          Latitude: 33.7415810
+//         Longitude: -84.3219833
+//          Altitude: 217.80
+//          Datetime: 2026-09-18 09:09:59
+//
+//   2. `gps -g <field>` -- one terse line per query, DIFFERENT labels:
+//        "Fix: Yes"  "Sats: 9"  "Lat: <d>"  "Lon: <d>"  "Alt: <d>"
+//        "Accuracy: <d>"  "Date/Time: <ts>"  and "ANTENNA OK" (bare, for -g text)
+//
+//   3. `nmea` / `gps -g nmea` -- raw NMEA-0183 sentences ($GNGGA, $GNRMC, ...).
+//
+// Coordinates are kept as the device's own decimal strings (no float on the
+// STM32) except the NMEA parser, which must convert ddmm.mmmm -> degrees.
+// ===========================================================================
+
+#define MM_GPS_STR 24 // fits "2026-09-18 09:09:59" + NUL and any coord string
+
+typedef struct {
+    bool has_fix;
+    int sats; // -1 until seen
+    bool have_sats;
+    char accuracy[MM_GPS_STR]; // horizontal accuracy, device string ("" if unseen)
+    char lat[MM_GPS_STR]; // decimal degrees, device string
+    char lon[MM_GPS_STR];
+    char alt[MM_GPS_STR]; // metres
+    char datetime[MM_GPS_STR]; // "YYYY-MM-DD HH:MM:SS"
+    char text[MM_GPS_STR]; // antenna/status text (e.g. "ANTENNA OK")
+} MMGpsFix;
+
+// Zero a fix to the "nothing seen yet" state (sats=-1, have_*/has_fix false).
+void mm_gps_fix_reset(MMGpsFix* out);
+
+// Feed ONE line (from either `gpsdata` or `gps -g`) into *fix. Accepts both
+// label sets ("Good Fix:"/"Fix:", "Satellites:"/"Sats:", "Latitude:"/"Lat:",
+// "Longitude:"/"Lon:", "Altitude:"/"Alt:", "Datetime:"/"Date/Time:",
+// "Accuracy:", "Text:", and a bare "ANTENNA ..." status line). Tolerates a
+// leading "> " prompt. Returns true if the line updated any field. Fields not
+// present in the line are left untouched, so it accumulates across a stream.
+bool mm_gps_fix_update(const char* line, MMGpsFix* fix);
+
+// Convenience: reset *fix then run mm_gps_fix_update over every line of a
+// buffer. Returns the number of lines that updated a field.
+int mm_gps_parse_buffer(const char* text, MMGpsFix* fix);
+
+// --- NMEA-0183 --------------------------------------------------------------
+
+// Validate a sentence's "*HH" checksum (XOR of chars between '$' and '*').
+// Returns true iff a checksum is present and matches. A sentence with no "*HH"
+// (some receivers omit it) returns false -- callers may still parse it.
+bool mm_nmea_checksum_ok(const char* sentence);
+
+typedef struct {
+    double lat_deg; // signed decimal degrees (S/W negative)
+    double lon_deg;
+    double alt_m; // metres above MSL
+    int fix_quality; // GGA field 6: 0=none,1=GPS,2=DGPS,...
+    int sats; // satellites in use
+    bool valid; // fix_quality > 0
+} MMNmeaGga;
+
+// Parse a GGA sentence ($__GGA). Handles the talker prefix (GP/GN/GL/BD...) and
+// an optional "*HH". Returns false if it isn't a GGA or lacks a position.
+bool mm_nmea_parse_gga(const char* sentence, MMNmeaGga* out);
+
+typedef struct {
+    double lat_deg;
+    double lon_deg;
+    double speed_knots;
+    double course_deg;
+    bool active; // status field 'A' (void 'V' -> false)
+    char date[7]; // "DDMMYY" from field 9, "" if absent
+    char time[7]; // "HHMMSS" from field 1, "" if absent
+} MMNmeaRmc;
+
+// Parse an RMC sentence ($__RMC). Returns false if it isn't RMC or has no
+// position. active=false (status 'V') still parses whatever fields are present.
+bool mm_nmea_parse_rmc(const char* sentence, MMNmeaRmc* out);
+
+// ===========================================================================
+// Bluetooth support (BLE; v1.10.2 formats confirmed on device).
+// ===========================================================================
+
+typedef struct {
+    int rssi; // signed dBm
+    bool is_mac; // true if `name` is a bare MAC (device advertised no name)
+    char name[33]; // advertised name, or the MAC string when is_mac
+} MMBtDevice;
+
+// Parse a `sniffbt` (BT_SCAN_ALL) stream. On v1.10.2 this mode prints EVERY
+// record onto ONE line with NO separator, each as "<rssi> Device: <name>"
+// glued to the next record's rssi, e.g.
+//   "> -70 Device: 28:B1:0F:B8:06:00-90 Device: Flipper Ougilot-72 Device: ..."
+// so it cannot be handled line-by-line. This tokenises a whole buffer on the
+// " Device: " marker: each record's rssi is the signed int that abuts the
+// marker on its left, and its name is the text after the marker with the NEXT
+// record's trailing rssi stripped. Fills out[0..max) and returns the count.
+// Records whose name is a MAC set is_mac=true. A trailing partial record (no
+// following " Device: ") is emitted using the preceding rssi.
+size_t mm_btall_parse_buffer(const char* text, MMBtDevice* out, size_t max);
+
+// `sniffbt -t flipper` prints a two-line record:
+//   "-42 MAC: 80:E1:27:F3:29:42"
+//   "Name: Flipper Ougilot"
+// and `sniffbt -t airtag` prints:
+//   "-64 MAC: C3:B3:5A:E7:7D:37"
+//   "Len: 31"
+// These parse each line kind. The "<rssi> MAC: <mac>" line is shared by both;
+// mm_bt_rssi_mac_line fills *rssi and mac_out (>= 18). The follow-on lines are
+// mm_bt_name_line (Flipper name) and mm_bt_len_line (AirTag payload length).
+bool mm_bt_rssi_mac_line(const char* line, int* rssi, char* mac_out);
+bool mm_bt_name_line(const char* line, char* out, size_t out_sz);
+bool mm_bt_len_line(const char* line, int* len);
+
+// One `btwardrive` record. The firmware prints a display prefix glued to a
+// WiGLE CSV line with no separator, e.g.
+//   "Device: LE-black box78:2B:64:4D:52:84,,[BLE],2026-09-18 09:14:20,0,-86,33.7411995,-84.3216934,182.70,2.75,BLE"
+// The CSV portion is the stable data: "<mac>,,[BLE],<datetime>,0,<rssi>,<lat>,
+// <lon>,<alt>,<accuracy>,BLE". The display name may be a MAC or a real name and
+// is discarded (the CSV MAC is authoritative).
+typedef struct {
+    char mac[18];
+    char datetime[MM_GPS_STR];
+    int rssi;
+    char lat[MM_GPS_STR];
+    char lon[MM_GPS_STR];
+    char alt[MM_GPS_STR];
+    char accuracy[MM_GPS_STR];
+} MMBtWardrive;
+
+// Parse one btwardrive line. Anchors on ",,[BLE]," (the MAC is the 17 chars
+// before it). Tolerates a leading "> " prompt. Returns false if not a record.
+bool mm_btwardrive_parse_line(const char* line, MMBtWardrive* out);

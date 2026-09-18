@@ -852,3 +852,378 @@ MMJoinLineType mm_join_classify(const char* line) {
     if(mm_ci_strstr(line, "connecting")) return MMJoinLineConnecting;
     return MMJoinLineNone;
 }
+
+// ===========================================================================
+// GPS parsers
+// ===========================================================================
+
+void mm_gps_fix_reset(MMGpsFix* out) {
+    if(!out) return;
+    memset(out, 0, sizeof(*out));
+    out->sats = -1;
+    out->have_sats = false;
+    out->has_fix = false;
+}
+
+// If `line` (after the prompt) begins with `label`, copy the trimmed remainder
+// into out[0..out_sz) and return true.
+static bool mm_gps_take(const char* line, const char* label, char* out, size_t out_sz) {
+    const char* p = mm_skip_prompt(line);
+    size_t ll = strlen(label);
+    if(strncmp(p, label, ll) != 0) return false;
+    p += ll;
+    while(*p == ' ' || *p == '\t') p++;
+    mm_copy_field(p, NULL, out, out_sz);
+    return true;
+}
+
+// Parse "Yes"/"No" (case-insensitive) into *b. Returns true if recognised.
+static bool mm_gps_yesno(const char* s, bool* b) {
+    if(mm_ci_strstr(s, "yes")) {
+        *b = true;
+        return true;
+    }
+    if(mm_ci_strstr(s, "no")) {
+        *b = false;
+        return true;
+    }
+    return false;
+}
+
+bool mm_gps_fix_update(const char* line, MMGpsFix* fix) {
+    if(!line || !fix) return false;
+    char val[MM_GPS_STR];
+
+    // Fix: block "Good Fix:" and terse "Fix:" (check the longer label first).
+    if(mm_gps_take(line, "Good Fix:", val, sizeof(val)) ||
+       mm_gps_take(line, "Fix:", val, sizeof(val))) {
+        bool b;
+        if(mm_gps_yesno(val, &b)) {
+            fix->has_fix = b;
+            return true;
+        }
+        return false;
+    }
+    if(mm_gps_take(line, "Satellites:", val, sizeof(val)) ||
+       mm_gps_take(line, "Sats:", val, sizeof(val))) {
+        char* end;
+        long n = strtol(val, &end, 10);
+        if(end == val) return false;
+        fix->sats = (int)n;
+        fix->have_sats = true;
+        return true;
+    }
+    if(mm_gps_take(line, "Accuracy:", fix->accuracy, sizeof(fix->accuracy))) return true;
+    if(mm_gps_take(line, "Latitude:", fix->lat, sizeof(fix->lat)) ||
+       mm_gps_take(line, "Lat:", fix->lat, sizeof(fix->lat)))
+        return true;
+    if(mm_gps_take(line, "Longitude:", fix->lon, sizeof(fix->lon)) ||
+       mm_gps_take(line, "Lon:", fix->lon, sizeof(fix->lon)))
+        return true;
+    if(mm_gps_take(line, "Altitude:", fix->alt, sizeof(fix->alt)) ||
+       mm_gps_take(line, "Alt:", fix->alt, sizeof(fix->alt)))
+        return true;
+    // "Datetime:" (block) and "Date/Time:" (terse).
+    if(mm_gps_take(line, "Datetime:", fix->datetime, sizeof(fix->datetime)) ||
+       mm_gps_take(line, "Date/Time:", fix->datetime, sizeof(fix->datetime)))
+        return true;
+    if(mm_gps_take(line, "Text:", fix->text, sizeof(fix->text))) return true;
+    // Bare status line from `gps -g text`, e.g. "ANTENNA OK".
+    {
+        const char* p = mm_skip_prompt(line);
+        if(strncmp(p, "ANTENNA", 7) == 0) {
+            mm_copy_field(p, NULL, fix->text, sizeof(fix->text));
+            return true;
+        }
+    }
+    return false;
+}
+
+int mm_gps_parse_buffer(const char* text, MMGpsFix* fix) {
+    if(!text || !fix) return 0;
+    mm_gps_fix_reset(fix);
+    int updated = 0;
+    const char* p = text;
+    char line[128];
+    while(*p) {
+        const char* nl = strchr(p, '\n');
+        size_t len = nl ? (size_t)(nl - p) : strlen(p);
+        size_t copy = len < sizeof(line) - 1 ? len : sizeof(line) - 1;
+        memcpy(line, p, copy);
+        line[copy] = '\0';
+        if(mm_gps_fix_update(line, fix)) updated++;
+        if(!nl) break;
+        p = nl + 1;
+    }
+    return updated;
+}
+
+// --- NMEA ---
+
+bool mm_nmea_checksum_ok(const char* sentence) {
+    if(!sentence) return false;
+    const char* p = sentence;
+    while(*p == ' ' || *p == '\t' || *p == '>') p++;
+    if(*p != '$') return false;
+    p++;
+    unsigned char sum = 0;
+    while(*p && *p != '*') {
+        sum ^= (unsigned char)*p;
+        p++;
+    }
+    if(*p != '*') return false;
+    p++;
+    if(!isxdigit((unsigned char)p[0]) || !isxdigit((unsigned char)p[1])) return false;
+    unsigned int want = (unsigned int)strtol((char[]){p[0], p[1], '\0'}, NULL, 16);
+    return want == sum;
+}
+
+// Split a sentence into up to `max` comma fields, pointing into a private copy.
+// Returns the field count. `buf` must be >= strlen(sentence)+1.
+static int mm_nmea_fields(const char* sentence, char* buf, char** fields, int max) {
+    const char* p = sentence;
+    while(*p == ' ' || *p == '\t' || *p == '>') p++;
+    strcpy(buf, p);
+    // Drop a trailing "*HH" and any CR/LF.
+    char* star = strchr(buf, '*');
+    if(star) *star = '\0';
+    size_t n = strlen(buf);
+    while(n > 0 && (buf[n - 1] == '\r' || buf[n - 1] == '\n' || buf[n - 1] == ' ')) buf[--n] = '\0';
+
+    int count = 0;
+    char* f = buf;
+    fields[count++] = f;
+    for(char* q = buf; *q && count < max; q++) {
+        if(*q == ',') {
+            *q = '\0';
+            fields[count++] = q + 1;
+        }
+    }
+    return count;
+}
+
+// Convert an NMEA "ddmm.mmmm" (lat) / "dddmm.mmmm" (lon) + hemisphere to signed
+// decimal degrees. deg_digits is 2 for lat, 3 for lon. Returns false if empty.
+static bool mm_nmea_coord(const char* val, const char* hemi, int deg_digits, double* out) {
+    (void)deg_digits; // dd vs ddd falls out of raw/100 arithmetic; kept for clarity
+    if(!val || !*val) return false;
+    // raw = ddmm.mmmm (or dddmm.mmmm); degrees = int(raw/100), minutes = rest.
+    // Constants held in double locals so -fsingle-precision-constant can't fold
+    // them to float (which would trip -Werror=double-promotion on the target).
+    const double hundred = 100.0, sixty = 60.0;
+    double raw = strtod(val, NULL);
+    int degrees = (int)(raw / hundred);
+    double minutes = raw - (double)degrees * hundred;
+    double dec = (double)degrees + minutes / sixty;
+    if(hemi && (*hemi == 'S' || *hemi == 'W' || *hemi == 's' || *hemi == 'w')) dec = -dec;
+    *out = dec;
+    return true;
+}
+
+bool mm_nmea_parse_gga(const char* sentence, MMNmeaGga* out) {
+    if(!sentence || !out) return false;
+    char buf[128];
+    if(strlen(sentence) >= sizeof(buf)) return false;
+    char* f[20];
+    int n = mm_nmea_fields(sentence, buf, f, 20);
+    if(n < 1) return false;
+    // f[0] is "$__GGA"; accept any talker.
+    size_t l0 = strlen(f[0]);
+    if(l0 < 6 || strcmp(f[0] + l0 - 3, "GGA") != 0) return false;
+    if(n < 10) return false; // need through altitude
+    memset(out, 0, sizeof(*out));
+    if(!mm_nmea_coord(f[2], f[3], 2, &out->lat_deg)) { /* leave 0 */
+    }
+    if(!mm_nmea_coord(f[4], f[5], 3, &out->lon_deg)) { /* leave 0 */
+    }
+    out->fix_quality = (int)strtol(f[6], NULL, 10);
+    out->sats = (int)strtol(f[7], NULL, 10);
+    out->alt_m = strtod(f[9], NULL);
+    out->valid = out->fix_quality > 0;
+    return true;
+}
+
+bool mm_nmea_parse_rmc(const char* sentence, MMNmeaRmc* out) {
+    if(!sentence || !out) return false;
+    char buf[128];
+    if(strlen(sentence) >= sizeof(buf)) return false;
+    char* f[20];
+    int n = mm_nmea_fields(sentence, buf, f, 20);
+    if(n < 1) return false;
+    size_t l0 = strlen(f[0]);
+    if(l0 < 6 || strcmp(f[0] + l0 - 3, "RMC") != 0) return false;
+    if(n < 10) return false;
+    memset(out, 0, sizeof(*out));
+    // f[1]=time, f[2]=status, f[3/4]=lat, f[5/6]=lon, f[7]=speed, f[8]=course, f[9]=date
+    snprintf(out->time, sizeof(out->time), "%.6s", f[1]);
+    out->active = (f[2][0] == 'A' || f[2][0] == 'a');
+    mm_nmea_coord(f[3], f[4], 2, &out->lat_deg);
+    mm_nmea_coord(f[5], f[6], 3, &out->lon_deg);
+    out->speed_knots = strtod(f[7], NULL);
+    out->course_deg = strtod(f[8], NULL);
+    snprintf(out->date, sizeof(out->date), "%.6s", f[9]);
+    return true;
+}
+
+// ===========================================================================
+// Bluetooth parsers
+// ===========================================================================
+
+// Strip a trailing " <-NN>" style RSSI (a '-' followed by 1-3 digits at the very
+// end of [start,end)) that is glued to a device name in the sniffbt stream.
+// Returns the RSSI via *rssi (if found) and the new end (name end).
+static const char* mm_strip_trailing_rssi(const char* start, const char* end, int* rssi, bool* found) {
+    *found = false;
+    const char* e = end;
+    // trim trailing spaces first
+    while(e > start && (e[-1] == ' ' || e[-1] == '\t' || e[-1] == '\r' || e[-1] == '\n')) e--;
+    const char* d = e;
+    int digits = 0;
+    while(d > start && d[-1] >= '0' && d[-1] <= '9' && digits < 3) {
+        d--;
+        digits++;
+    }
+    if(digits >= 1 && digits <= 3 && d > start && d[-1] == '-') {
+        // require the '-' to abut a MAC/name char, not be a lone token start we want to keep
+        *rssi = (int)strtol(d - 1, NULL, 10);
+        *found = true;
+        return d - 1; // name ends before the '-'
+    }
+    return e;
+}
+
+size_t mm_btall_parse_buffer(const char* text, MMBtDevice* out, size_t max) {
+    if(!text || !out || max == 0) return 0;
+    const char* MARK = "Device: ";
+    const size_t MLEN = 8;
+
+    // Locate the first marker.
+    const char* m = strstr(text, MARK);
+    if(!m) return 0;
+
+    // The first record's rssi is the trailing signed int of the text before it.
+    int cur_rssi = 0;
+    bool have_rssi;
+    mm_strip_trailing_rssi(text, m, &cur_rssi, &have_rssi);
+
+    size_t count = 0;
+    while(m && count < max) {
+        const char* name_start = m + MLEN;
+        const char* next = strstr(name_start, MARK);
+        const char* name_end;
+        int next_rssi = 0;
+        bool next_has = false;
+        if(next) {
+            name_end = mm_strip_trailing_rssi(name_start, next, &next_rssi, &next_has);
+        } else {
+            // Last record: name runs to a control char / prompt / end.
+            const char* e = name_start;
+            while(*e && *e != '\r' && *e != '\n' && *e != '#' && *e != '>') e++;
+            name_end = e;
+            // No trailing rssi to strip for the final name.
+        }
+
+        // Emit this record.
+        char name[33];
+        size_t nlen = (size_t)(name_end - name_start);
+        // trim surrounding whitespace
+        while(nlen > 0 && (name_start[0] == ' ' || name_start[0] == '\t')) {
+            name_start++;
+            nlen--;
+        }
+        while(nlen > 0 && (name_start[nlen - 1] == ' ' || name_start[nlen - 1] == '\t')) nlen--;
+        if(nlen >= sizeof(name)) nlen = sizeof(name) - 1;
+        memcpy(name, name_start, nlen);
+        name[nlen] = '\0';
+
+        if(nlen > 0) {
+            out[count].rssi = cur_rssi;
+            out[count].is_mac = mm_ap_is_bssid(name);
+            memcpy(out[count].name, name, nlen + 1);
+            count++;
+        }
+
+        cur_rssi = next_rssi;
+        (void)next_has;
+        m = next;
+    }
+    return count;
+}
+
+bool mm_bt_rssi_mac_line(const char* line, int* rssi, char* mac_out) {
+    if(!line || !rssi || !mac_out) return false;
+    const char* p = mm_skip_prompt(line);
+    char* end;
+    long r = strtol(p, &end, 10);
+    if(end == p) return false;
+    p = end;
+    while(*p == ' ' || *p == '\t') p++;
+    if(strncmp(p, "MAC:", 4) != 0) return false;
+    p += 4;
+    while(*p == ' ' || *p == '\t') p++;
+    if(!mm_take_mac(p, mac_out)) return false;
+    *rssi = (int)r;
+    return true;
+}
+
+bool mm_bt_name_line(const char* line, char* out, size_t out_sz) {
+    return mm_gps_take(line, "Name:", out, out_sz);
+}
+
+bool mm_bt_len_line(const char* line, int* len) {
+    if(!line || !len) return false;
+    const char* p = mm_skip_prompt(line);
+    if(strncmp(p, "Len:", 4) != 0) return false;
+    p += 4;
+    while(*p == ' ' || *p == '\t') p++;
+    char* end;
+    long v = strtol(p, &end, 10);
+    if(end == p) return false;
+    *len = (int)v;
+    return true;
+}
+
+bool mm_btwardrive_parse_line(const char* line, MMBtWardrive* out) {
+    if(!line || !out) return false;
+    const char* anchor = strstr(line, ",,[BLE],");
+    if(!anchor) return false;
+    // MAC is the 17 chars immediately before the anchor.
+    if(anchor - line < 17) return false;
+    const char* macp = anchor - 17;
+    char mac[18];
+    memcpy(mac, macp, 17);
+    mac[17] = '\0';
+    if(!mm_ap_is_bssid(mac)) return false;
+
+    // After the anchor: "<datetime>,0,<rssi>,<lat>,<lon>,<alt>,<accuracy>,BLE"
+    const char* p = anchor + strlen(",,[BLE],");
+    char buf[160];
+    if(strlen(p) >= sizeof(buf)) return false;
+    strcpy(buf, p);
+    // trim trailing CR/LF
+    size_t n = strlen(buf);
+    while(n > 0 && (buf[n - 1] == '\r' || buf[n - 1] == '\n')) buf[--n] = '\0';
+
+    char* f[10];
+    int count = 0;
+    f[count++] = buf;
+    for(char* q = buf; *q && count < 10; q++) {
+        if(*q == ',') {
+            *q = '\0';
+            f[count++] = q + 1;
+        }
+    }
+    // f: [0]=datetime [1]=channel(0) [2]=rssi [3]=lat [4]=lon [5]=alt [6]=accuracy [7]=BLE
+    if(count < 7) return false;
+
+    strcpy(out->mac, mac);
+    // mm_copy_field (bounded, no format string) avoids -Werror=format-truncation
+    // that snprintf("%s", ...) trips when the source could exceed the field.
+    mm_copy_field(f[0], NULL, out->datetime, sizeof(out->datetime));
+    out->rssi = (int)strtol(f[2], NULL, 10);
+    mm_copy_field(f[3], NULL, out->lat, sizeof(out->lat));
+    mm_copy_field(f[4], NULL, out->lon, sizeof(out->lon));
+    mm_copy_field(f[5], NULL, out->alt, sizeof(out->alt));
+    mm_copy_field(f[6], NULL, out->accuracy, sizeof(out->accuracy));
+    return true;
+}

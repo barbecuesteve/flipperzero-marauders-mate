@@ -8,3 +8,5 @@ cc -Wall -Wextra -std=gnu11 tools/scanall_parser_test.c marauders_mate_ap_parser
 /tmp/mm_test_scanall
 cc -Wall -Wextra -std=gnu11 tools/join_parser_test.c marauders_mate_ap_parser.c -o /tmp/mm_test_join
 /tmp/mm_test_join
+cc -Wall -Wextra -std=gnu11 tools/gps_bt_parser_test.c marauders_mate_ap_parser.c -lm -o /tmp/mm_test_gps_bt
+/tmp/mm_test_gps_bt

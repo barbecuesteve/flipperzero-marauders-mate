@@ -102,30 +102,50 @@ for host unit tests. Steps (deferred "C5 time" — toolchain not yet set up):
    **0x10000** (app), 921600 baud. (Point it at *your* freshly built bins, not
    the bundled v8 bin.)
 
-### OPEN: how do we physically flash the C5? (unresolved)
+### How do we physically flash the C5?
 
-`c5_flasher.py` assumes a **direct** connection to the C5 with esptool auto-reset
-(`--before default_reset` → DTR/RTS toggling EN/IO0), and it waits for the C5's
-own serial port to appear. **We have not found that port yet.** Known ports on
-the bench:
+There is **no confirmed direct USB/UART port to the C5** yet — `c5_flasher.py`
+and the web installer both assume one (esptool auto-reset via DTR/RTS → EN/IO0),
+and we haven't found it. Known bench ports:
 
 - `/dev/cu.usbmodemflip_*` — the **Flipper**; its GPIO USB-UART bridge reaches
-  the C5's **UART only** (TX/RX, no DTR/RTS to EN/IO0). Good for CLI/capture, not
-  for esptool auto-reset.
+  the C5's **UART only** (TX/RX, no DTR/RTS). Good for CLI/capture, not esptool
+  auto-reset.
 - `/dev/cu.usbserial-*` (CH340) — the **v6 board's display ESP32** (fw ~v1.14),
   **not** the C5.
 
-So the C5's programming interface is currently unidentified. Candidate paths, to
-resolve before a reflash:
+**Leading path — `update -s` (SD self-flash), no direct port needed.** The
+firmware's `update` command:
 
-- **Find/expose a direct C5 USB or UART0 + EN/IO0** (castellated pads or a
-  header) and flash normally with `c5_flasher.py`.
-- **Flash over the Flipper UART bridge with manual bootloader entry** — hold the
-  C5's BOOT (IO0) low, tap RESET, then esptool `--before no_reset --after
-  hard_reset` over the Flipper port. Feasible only if BOOT/RESET are accessible
-  and the bridge passes esptool's SLIP protocol reliably; **untested**.
-- **Reuse whatever method put v1.10.2 on it originally** — that path is the
-  answer; document it here once known.
+- `update -w` (OTA over WiFi): **dead code** (commented out in v1.10.2).
+- `update -s`: reads **`/update.bin` from the SD card root**, streams it into the
+  inactive OTA partition via the ESP-IDF OTA API (`esp_ota_*`), sets it as the
+  boot partition, and reboots. A **self-flash from SD** — no USB, esptool, or
+  BOOT/RESET lines. Just `stopscan` then `update -s` over the existing Flipper
+  bridge.
+
+This works for the C5 because `MARAUDER_C5` compiles in SD (`HAS_SD`/`USE_SD`,
+and a dedicated `HAS_C5_SD`/`HAS_SEPARATE_SD` path), and the C5-family partition
+table is dual-OTA (`otadata`/`app0`/`app1`, confirmed in the bundled
+`partitions.bin`). The device has **two SD slots** (one per ESP); the C5's slot
+just needs a card. To flash a patched build:
+
+1. Build `MARAUDER_C5` v1.17.0 with both patches (section B above); name the app
+   image `update.bin`.
+2. Copy `update.bin` to the root of the **C5's** SD card; insert it.
+3. Over the Flipper bridge: `stopscan`, then `update -s`. It flashes and reboots.
+
+Verify before relying on it: (a) which SD slot actually feeds the C5, (b) that the
+flashed C5's partition table has OTA slots (very likely — the family uses
+app0/app1/otadata), and (c) keep a recovery path in case the OTA image is bad.
+
+**Fallback paths** if SD self-flash is unavailable:
+
+- **Direct C5 USB / UART0 + EN/IO0** (castellated pads or header) → normal
+  `c5_flasher.py`.
+- **Flipper bridge + manual bootloader entry** — hold BOOT (IO0) low, tap RESET,
+  esptool `--before no_reset`. Untested; needs BOOT/RESET access.
+- **Whatever originally flashed v1.10.2** — document it here once known.
 
 ## What this means for the app
 

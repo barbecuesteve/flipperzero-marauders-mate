@@ -1,0 +1,76 @@
+diff --git a/esp32_marauder/CommandLine.cpp b/esp32_marauder/CommandLine.cpp
+index fdde3e4..7dc57e5 100644
+--- a/esp32_marauder/CommandLine.cpp
++++ b/esp32_marauder/CommandLine.cpp
+@@ -842,6 +842,11 @@ void CommandLine::runCommand(String input) {
+       #ifdef HAS_GPS
+         if (gps_obj.getGpsModuleStatus()) {
+           //int sta_sw = this->argSearch(&cmd_args, "-s");
++          // Marauder's Mate: `-w` runs a WiFi-only wardrive (skips the BLE phase).
++          // The BLE phase runs concurrently with WiFi and can exhaust NimBLE's
++          // event pool on some boards (observed on ESP32-C5), asserting in
++          // npl_freertos_event_init. WiFi-only avoids that entirely.
++          wifi_scan_obj.wardrive_ble_enabled = (this->argSearch(&cmd_args, "-w") == -1);
+           this->startScanFromCLI(WIFI_SCAN_WAR_DRIVE, TFT_GREEN, "Wardrive");
+         }
+       #else
+diff --git a/esp32_marauder/WiFiScan.cpp b/esp32_marauder/WiFiScan.cpp
+index d0b6bc7..f17f834 100644
+--- a/esp32_marauder/WiFiScan.cpp
++++ b/esp32_marauder/WiFiScan.cpp
+@@ -6001,13 +6001,24 @@ void WiFiScan::executeWarDrive() {
+ 
+         // Only run BLE after the entire weighted WiFi channel list has completed.
+         //if (currentScanMode == WIFI_SCAN_WAR_DRIVE && this->wardrive_channel_index >= wardrive_channel_count) {
+-        if (currentScanMode == WIFI_SCAN_WAR_DRIVE && this->wardrive_channel_index % 4 == 0) {
++        // Marauder's Mate: gate the BLE phase on wardrive_ble_enabled (`wardrive -w`
++        // runs WiFi-only). When enabled, TIME-SLICE the radios: the BLE scan and
++        // WiFi must not run concurrently or NimBLE's NPL event pool is exhausted
++        // (npl_freertos_event_init assert, observed on the ESP32-C5). Tearing WiFi
++        // fully down here means the BLE window runs alone; the !ble_scanning
++        // branch below re-inits WiFi (the shutdownWiFi/startWardriverWiFi pair is
++        // the same one the WIFI_SCAN_FAILED path already uses).
++        if (currentScanMode == WIFI_SCAN_WAR_DRIVE && this->wardrive_ble_enabled &&
++            this->wardrive_channel_index % 4 == 0) {
+           #ifdef HAS_BT
+             this->bt_pending_clear = true;
+ 
+             while (bt_cb_busy)
+               delay(100);
+ 
++            this->wifi_initialized = true;
++            this->shutdownWiFi();
++
+             pBLEScan->clearResults();
+ 
+             #ifdef HAS_NIMBLE_2
+@@ -6031,6 +6042,14 @@ void WiFiScan::executeWarDrive() {
+         uint8_t scan_channel = wardrive_channels[this->wardrive_channel_index];
+         this->wardrive_channel_index++;
+ 
++        // Marauder's Mate: WiFi is torn down for the BLE window above, so bring
++        // it back before scanning. Harmless (a mode set + disconnect) when WiFi
++        // is already initialized on a normal WiFi-only cycle.
++        if (!this->wifi_initialized) {
++          this->startWardriverWiFi();
++          this->wifi_initialized = true;
++        }
++
+         #ifdef HAS_DUAL_BAND
+           WiFi.scanNetworks(true, true, false, 80, scan_channel);
+         #else
+diff --git a/esp32_marauder/WiFiScan.h b/esp32_marauder/WiFiScan.h
+index fce6d4c..5eef09c 100644
+--- a/esp32_marauder/WiFiScan.h
++++ b/esp32_marauder/WiFiScan.h
+@@ -921,6 +921,10 @@ class WiFiScan
+     bool save_pcap = false;
+     bool ep_deauth = false;
+     bool ble_scanning = false;
++    // Marauder's Mate: wardrive BLE phase toggle. When false, `wardrive` runs a
++    // WiFi-only sweep and never starts a BLE scan. Set from the `wardrive -w`
++    // CLI flag. Default true preserves the combined WiFi+BLE wardrive.
++    bool wardrive_ble_enabled = true;
+ 
+     char* flock_ssid[5] = {
+       "flock",

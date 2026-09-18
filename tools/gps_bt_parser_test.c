@@ -47,6 +47,35 @@ int main(void) {
         CHECK(strcmp(fix.text, "ANTENNA OK") == 0, "gpsdata text: '%s'", fix.text);
     }
 
+    // ===== GPS: v1.17.0 gpsdata block (relabeled Fix/Sats/Acc/D/T) =====
+    // Firmware v1.17.0 shortened the block labels: Good Fix->Fix, Satellites->
+    // Sats, Accuracy->Acc, Latitude->Lat, Longitude->Lon, Altitude->Alt,
+    // Datetime->D/T. The parser must handle both spellings (version-agnostic).
+    {
+        const char* block =
+            "==== GPS Data ====\r\n"
+            "  Fix: Yes\r\n"
+            "      Text: ANTENNA OK\r\n"
+            " Sats: 9\r\n"
+            "  Acc: 4.75\r\n"
+            "  Lat: 33.7415810\r\n"
+            "  Lon: -84.3219833\r\n"
+            "  Alt: 217.80\r\n"
+            "  D/T: 2026-09-18 09:09:59\r\n"
+            " Dist: 12.0 m\r\n"; // v1.17.0 tracker-stats line: must be ignored
+        MMGpsFix fix;
+        int upd = mm_gps_parse_buffer(block, &fix);
+        CHECK(fix.has_fix, "v1.17 gpsdata: fix");
+        CHECK(fix.have_sats && fix.sats == 9, "v1.17 gpsdata: sats=%d", fix.sats);
+        CHECK(strcmp(fix.accuracy, "4.75") == 0, "v1.17 gpsdata Acc: '%s'", fix.accuracy);
+        CHECK(strcmp(fix.lat, "33.7415810") == 0, "v1.17 gpsdata Lat: '%s'", fix.lat);
+        CHECK(strcmp(fix.lon, "-84.3219833") == 0, "v1.17 gpsdata Lon");
+        CHECK(strcmp(fix.alt, "217.80") == 0, "v1.17 gpsdata Alt");
+        CHECK(strcmp(fix.datetime, "2026-09-18 09:09:59") == 0, "v1.17 gpsdata D/T: '%s'", fix.datetime);
+        CHECK(strcmp(fix.text, "ANTENNA OK") == 0, "v1.17 gpsdata text");
+        (void)upd;
+    }
+
     // ===================== GPS: terse `gps -g` replies =====================
     {
         MMGpsFix fix;

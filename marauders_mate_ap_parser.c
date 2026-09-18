@@ -913,7 +913,11 @@ bool mm_gps_fix_update(const char* line, MMGpsFix* fix) {
         fix->have_sats = true;
         return true;
     }
-    if(mm_gps_take(line, "Accuracy:", fix->accuracy, sizeof(fix->accuracy))) return true;
+    // Accuracy: v1.10.2 gpsdata block + `gps -g` use "Accuracy:"; v1.17.0's
+    // gpsdata block shortened it to "Acc:". Accept both (version-agnostic).
+    if(mm_gps_take(line, "Accuracy:", fix->accuracy, sizeof(fix->accuracy)) ||
+       mm_gps_take(line, "Acc:", fix->accuracy, sizeof(fix->accuracy)))
+        return true;
     if(mm_gps_take(line, "Latitude:", fix->lat, sizeof(fix->lat)) ||
        mm_gps_take(line, "Lat:", fix->lat, sizeof(fix->lat)))
         return true;
@@ -923,9 +927,11 @@ bool mm_gps_fix_update(const char* line, MMGpsFix* fix) {
     if(mm_gps_take(line, "Altitude:", fix->alt, sizeof(fix->alt)) ||
        mm_gps_take(line, "Alt:", fix->alt, sizeof(fix->alt)))
         return true;
-    // "Datetime:" (block) and "Date/Time:" (terse).
+    // Datetime: "Datetime:" (v1.10.2 block), "Date/Time:" (terse), and "D/T:"
+    // (v1.17.0 block). Accept all three.
     if(mm_gps_take(line, "Datetime:", fix->datetime, sizeof(fix->datetime)) ||
-       mm_gps_take(line, "Date/Time:", fix->datetime, sizeof(fix->datetime)))
+       mm_gps_take(line, "Date/Time:", fix->datetime, sizeof(fix->datetime)) ||
+       mm_gps_take(line, "D/T:", fix->datetime, sizeof(fix->datetime)))
         return true;
     if(mm_gps_take(line, "Text:", fix->text, sizeof(fix->text))) return true;
     // Bare status line from `gps -g text`, e.g. "ANTENNA OK".

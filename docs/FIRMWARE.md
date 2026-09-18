@@ -164,3 +164,41 @@ app0/app1/otadata), and (c) keep a recovery path in case the OTA image is bad.
   / `firmware/README.md`. The WiFi wardrive line parser
   (`mm_wardrive_parse_line`) is done and tested; the **live wardrive scene is on
   hold** until the C5 is reflashed with the fix (then point it at `wardrive -w`).
+
+## Serial format changes across firmware versions
+
+Comparing the `Serial.print*` output of every parsed command between the flashed
+**v1.10.2** and the latest **v1.17.0** (diff of `WiFiScan.cpp` / `CommandLine.cpp`
+/ `GpsInterface.cpp`). The bet held: changes are overwhelmingly **additive** —
+**one** breaking rename, in the `gpsdata` block.
+
+**Breaking (handled): `gpsdata` block relabel.** v1.17.0 shortened the block's
+field labels. The parser now accepts both spellings (`mm_gps_fix_update`), so it
+is version-agnostic — no version flag needed:
+
+| field | v1.10.2 | v1.17.0 | parser accepts |
+|---|---|---|---|
+| fix | `Good Fix:` | `Fix:` | both |
+| sats | `Satellites:` | `Sats:` | both |
+| accuracy | `Accuracy:` | `Acc:` | both |
+| lat/lon/alt | `Latitude:`/`Longitude:`/`Altitude:` | `Lat:`/`Lon:`/`Alt:` | both |
+| datetime | `Datetime:` | `D/T:` | both (+ terse `Date/Time:`) |
+
+**Additive in v1.17.0 (safe to ignore, or parse later):**
+- `gpsdata` gains tracker-stat lines: ` Dist:`, ` Speed:`, ` Elapsed:`, ` Points:`.
+- New BT sniff mode prints `Meta Device: ` (Ray-Ban/Meta glasses).
+- New commands/output: SPIFFS backup/restore, geofence list, brightness.
+
+**Unchanged (verified as diff context, not edits):** the scan/sniff line formats
+— `list -a` (`[i][CH:x] essid rssi`), scanall/`sniffbeacon` (`<rssi> Ch: <ch>
+<bssid> ESSID: ...`), `sniffprobe` (`Client:`/`Requesting:`), `sniffdeauth`
+(`<rssi> Ch: <ch> <src> -> <dst>`), pinescan (`DET:`), multissid (`SSIDs:`),
+pwnagotchi (`Name:`/`Pwnd #:`), `info`, foxhunt (`<name> RSSI: <n>`), host/port
+scans, and both wardrive CSVs (`,WIFI` / `,,[BLE],`). NMEA is emitted by the GPS
+module, so it's firmware-version-independent.
+
+**Design note for public release:** prefer **label-synonym tolerance** (accept the
+union of spellings, as the GPS parser now does) over a firmware-version switch.
+It needs no version detection and degrades gracefully on both older and newer
+firmware. Reserve a real version gate only for a format that is genuinely
+ambiguous between versions (none so far).

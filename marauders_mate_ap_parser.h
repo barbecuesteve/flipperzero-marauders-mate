@@ -339,6 +339,58 @@ typedef struct {
 // position. active=false (status 'V') still parses whatever fields are present.
 bool mm_nmea_parse_rmc(const char* sentence, MMNmeaRmc* out);
 
+// --- NMEA sky/quality: GSV (sats in view), GSA (fix/DOP), VTG (speed/course) --
+// These back a satellite-view screen. Formats confirmed against a live `nmea`
+// capture (u-blox-style, with the trailing signalID field on GSV/GSA).
+
+// Map a two-letter talker prefix to a short constellation name, or "?" if
+// unknown. GP=GPS, GL=GLONASS, GA=Galileo, GB/BD=BeiDou, GQ=QZSS, GI=NavIC,
+// GN=combined. `talker` is the two chars after '$'.
+const char* mm_nmea_constellation(const char* talker);
+
+#define MM_GSV_MAX_SATS 4 // a GSV sentence carries up to 4 satellites
+
+typedef struct {
+    int prn; // satellite id
+    int elevation; // degrees above horizon (0..90)
+    int azimuth; // degrees from true north (0..359)
+    int snr; // C/No in dB-Hz; 0 with has_snr=false when not tracked
+    bool has_snr; // false when the SNR field was blank (in view, not used)
+} MMSatInfo;
+
+typedef struct {
+    char talker[3]; // "GP","GL","GA","BD","GQ","GI"... (constellation prefix)
+    int total_msgs; // GSV sentences in this constellation's set
+    int msg_num; // 1-based index of this sentence
+    int in_view; // total satellites in view for this constellation
+    int count; // satellites carried in THIS sentence (0..MM_GSV_MAX_SATS)
+    MMSatInfo sats[MM_GSV_MAX_SATS];
+} MMNmeaGsv;
+
+// Parse a GSV sentence ($__GSV). Handles the optional trailing signalID field
+// and blank SNR slots. Returns false if it isn't GSV.
+bool mm_nmea_parse_gsv(const char* sentence, MMNmeaGsv* out);
+
+typedef struct {
+    int fix_type; // GSA field 2: 1=no fix, 2=2D, 3=3D
+    int sats_used; // count of non-empty PRN slots (satellites in the solution)
+    double pdop; // position dilution of precision
+    double hdop; // horizontal DOP (the usual "accuracy" proxy)
+    double vdop; // vertical DOP
+} MMNmeaGsa;
+
+// Parse a GSA sentence ($__GSA). Returns false if it isn't GSA.
+bool mm_nmea_parse_gsa(const char* sentence, MMNmeaGsa* out);
+
+typedef struct {
+    double course_deg; // course over ground, degrees true (field 1)
+    double speed_knots; // speed over ground, knots (field 5)
+    double speed_kmh; // speed over ground, km/h (field 7)
+} MMNmeaVtg;
+
+// Parse a VTG sentence ($__VTG). Returns false if it isn't VTG.
+bool mm_nmea_parse_vtg(const char* sentence, MMNmeaVtg* out);
+
 // ===========================================================================
 // Bluetooth support (BLE; v1.10.2 formats confirmed on device).
 // ===========================================================================

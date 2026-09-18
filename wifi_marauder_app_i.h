@@ -24,7 +24,7 @@
 #include <lib/toolbox/path.h>
 #include <dialogs/dialogs.h>
 
-#define NUM_MENU_ITEMS (47)
+#define NUM_MENU_ITEMS (48)
 
 // Top-level protocol categories for the restructured main menu.
 typedef enum {
@@ -54,6 +54,18 @@ typedef enum {
     MMDevPresent, // info replied
     MMDevAbsent, // no reply within the probe window
 } MMDeviceState;
+
+// Marauder's Mate: NMEA satellite-view table entry (one tracked satellite).
+#define MM_SAT_MAX (32)
+typedef struct {
+    char talker[3]; // constellation prefix ("GP","GL","BD"...)
+    int prn; // satellite id (unique within a constellation)
+    int elevation; // degrees above horizon
+    int azimuth; // degrees from true north
+    int snr; // C/No dB-Hz (0 when in view but not tracked)
+    bool has_snr; // false -> in view, not used in solution
+    int last_tick; // sat_ticks value at the last sighting (for aging)
+} MMSatSlot;
 
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
@@ -226,6 +238,18 @@ struct WifiMarauderApp {
     MMGpsFix gps_fix; // accumulated fix fields (labels vary by reply kind)
     bool gps_have; // any field has arrived (else "Acquiring...")
     int gps_ticks; // redraw throttle counter
+
+    // Marauder's Mate: NMEA satellite view (parsed `nmea` stream)
+    // A rolling per-satellite table (keyed by constellation+PRN), upserted from
+    // GSV sentences and aged out when a sat stops being re-sent.
+    MMSatSlot sat_slots[MM_SAT_MAX];
+    int sat_count;
+    int sat_fix_type; // GSA fix type (1/2/3); 0 until seen
+    int sat_used; // GSA satellites in the solution
+    int sat_hdop_x10; // GSA HDOP * 10 (integer, avoids on-device float printf)
+    int sat_speed_x10; // VTG speed km/h * 10
+    bool sat_have_speed; // a VTG sentence has arrived
+    int sat_ticks; // tick counter (staleness clock + redraw throttle)
 
     // Marauder's Mate: L3 host discovery
     char hosts[MM_HOST_MAX][16]; // discovered host IPs (dotted quad)

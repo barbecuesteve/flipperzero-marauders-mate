@@ -179,6 +179,55 @@ int main(void) {
               "btwardrive banner rejected");
     }
 
+    // ===================== NMEA sky/quality: GSV / GSA / VTG =====================
+    {
+        // GSV: 3-message set, 11 sats in view, this msg carries 4 (last with SNR).
+        MMNmeaGsv v;
+        CHECK(mm_nmea_parse_gsv("$GPGSV,3,1,11,05,58,223,25,06,25,065,21,09,13,046,18,11,55,035,23,0*6D", &v),
+              "GSV parses");
+        CHECK(strcmp(v.talker, "GP") == 0, "GSV talker: '%s'", v.talker);
+        CHECK(strcmp(mm_nmea_constellation(v.talker), "GPS") == 0, "GSV constellation");
+        CHECK(v.total_msgs == 3 && v.msg_num == 1 && v.in_view == 11, "GSV header");
+        CHECK(v.count == 4, "GSV count: %d", v.count);
+        CHECK(v.sats[0].prn == 5 && v.sats[0].elevation == 58 && v.sats[0].azimuth == 223 &&
+                  v.sats[0].snr == 25 && v.sats[0].has_snr, "GSV sat0");
+        CHECK(v.sats[3].prn == 11 && v.sats[3].snr == 23, "GSV sat3");
+
+        // GSV last message with a blank SNR slot (sat in view, not tracked).
+        MMNmeaGsv v2;
+        CHECK(mm_nmea_parse_gsv("$GPGSV,3,3,11,21,81,063,29,25,36,280,12,29,18,313,,0*59", &v2),
+              "GSV msg3 parses");
+        CHECK(v2.count == 3, "GSV msg3 count: %d", v2.count);
+        CHECK(v2.sats[2].prn == 29 && !v2.sats[2].has_snr, "GSV blank SNR -> has_snr false");
+
+        // BeiDou single-message GSV.
+        MMNmeaGsv v3;
+        CHECK(mm_nmea_parse_gsv("$BDGSV,1,1,02,28,55,071,17,33,39,057,31,0*76", &v3), "BDGSV parses");
+        CHECK(strcmp(mm_nmea_constellation(v3.talker), "BDS") == 0, "BDGSV constellation");
+        CHECK(v3.in_view == 2 && v3.count == 2, "BDGSV counts");
+
+        // GSA: 3D fix, 7 sats used, DOP trio.
+        MMNmeaGsa a;
+        CHECK(mm_nmea_parse_gsa("$GNGSA,A,3,05,06,09,11,12,21,25,,,,,,2.7,1.9,1.9,1*39", &a),
+              "GSA parses");
+        CHECK(a.fix_type == 3, "GSA fix_type: %d", a.fix_type);
+        CHECK(a.sats_used == 7, "GSA sats_used: %d", a.sats_used);
+        CHECK(near(a.pdop, 2.7) && near(a.hdop, 1.9) && near(a.vdop, 1.9), "GSA DOP");
+
+        // VTG: course + speed (knots and km/h), stationary sample.
+        MMNmeaVtg t;
+        CHECK(mm_nmea_parse_vtg("$GNVTG,304.27,T,,M,0.00,N,0.00,K,A*21", &t), "VTG parses");
+        CHECK(near(t.course_deg, 304.27), "VTG course: %.2f", t.course_deg);
+        CHECK(near(t.speed_knots, 0.0) && near(t.speed_kmh, 0.0), "VTG speed");
+
+        // Cross-type rejection.
+        MMNmeaGsv vr;
+        CHECK(!mm_nmea_parse_gsv("$GNVTG,304.27,T,,M,0.00,N,0.00,K,A*21", &vr), "GSV rejects VTG");
+        MMNmeaGsa ar;
+        CHECK(!mm_nmea_parse_gsa("$GPGSV,3,1,11,05,58,223,25,06,25,065,21,09,13,046,18,11,55,035,23,0*6D", &ar),
+              "GSA rejects GSV");
+    }
+
     if(failures == 0) {
         printf("OK: all gps+bt-parser tests passed\n");
         return 0;

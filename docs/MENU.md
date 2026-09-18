@@ -91,8 +91,9 @@ Marauder's Mate  [top-level: category submenu]
 │   ├─ Wardrive ............ wardrive
 │   ├─ Upload Wardrive ..... upload -d wdg/wigle/both
 │   ├─ GPS Data (Mate) ..... gpsdata → live fix panel (fix/sats, lat/lon/alt±acc, datetime)
+│   ├─ GPS Sats (Mate) ..... nmea → per-satellite SNR bars, fix type, HDOP, speed
 │   ├─ GPS Query ........... gps -t / gps -g <field×9> / gpsdata (raw console)
-│   ├─ NMEA Stream ......... nmea
+│   ├─ NMEA Stream ......... nmea (raw console)
 │   └─ GPS POI ............. gpspoi -s/-m/-e
 │
 └─ System

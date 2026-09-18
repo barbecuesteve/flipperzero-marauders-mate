@@ -26,6 +26,7 @@ typedef enum {
     WifiMarauderEventStartPineappleMon,
     WifiMarauderEventStartPwnagotchiMon,
     WifiMarauderEventStartGpsData,
+    WifiMarauderEventStartGpsSats,
     WifiMarauderEventStartDeviceInfo,
     WifiMarauderEventDeviceRedetect,
     WifiMarauderEventOpenLedPicker,

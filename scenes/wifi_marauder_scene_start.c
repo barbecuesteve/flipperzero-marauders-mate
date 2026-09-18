@@ -175,6 +175,9 @@ const WifiMarauderItem items[] = {
     // Parsed live fix panel (Mate). Sentinel "gpsdata" opens the scene instead
     // of dumping raw text to the console.
     {"GPS Data", {""}, 1, {"gpsdata"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatGps},
+    // Parsed satellite view (Mate). Sentinel "gpssats" opens the scene, which
+    // runs `nmea` and renders per-satellite SNR bars + fix quality.
+    {"GPS Sats", {""}, 1, {"gpssats"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatGps},
     // Raw single-field / stream queries for power users (unparsed console).
     {"GPS Query",
      {"tracker", "stream", "fix", "sats", "lat", "lon", "alt", "date", "accuracy", "text", "nmea"},
@@ -310,6 +313,12 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
     // from the dedicated "GPS Data" row or the "stream" option of "GPS Query").
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "gpsdata") == 0) {
         view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartGpsData);
+        return;
+    }
+
+    // Marauder's Mate: parsed NMEA satellite view.
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "gpssats") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartGpsSats);
         return;
     }
 
@@ -509,6 +518,10 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneGpsData);
+        } else if(event.event == WifiMarauderEventStartGpsSats) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneGpsSats);
         } else if(event.event == WifiMarauderEventStartDeviceInfo) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

@@ -1065,6 +1065,111 @@ bool mm_nmea_parse_rmc(const char* sentence, MMNmeaRmc* out) {
     return true;
 }
 
+// True if the "$__XXX" address field f0 ends in the 3-letter sentence type.
+static bool mm_nmea_type_is(const char* f0, const char* type) {
+    size_t l = strlen(f0);
+    return l >= 6 && strcmp(f0 + l - 3, type) == 0;
+}
+
+const char* mm_nmea_constellation(const char* talker) {
+    if(!talker) return "?";
+    if(strncmp(talker, "GP", 2) == 0) return "GPS";
+    if(strncmp(talker, "GL", 2) == 0) return "GLO";
+    if(strncmp(talker, "GA", 2) == 0) return "GAL";
+    if(strncmp(talker, "GB", 2) == 0 || strncmp(talker, "BD", 2) == 0) return "BDS";
+    if(strncmp(talker, "GQ", 2) == 0) return "QZSS";
+    if(strncmp(talker, "GI", 2) == 0) return "NAVIC";
+    if(strncmp(talker, "GN", 2) == 0) return "GNSS";
+    return "?";
+}
+
+bool mm_nmea_parse_gsv(const char* sentence, MMNmeaGsv* out) {
+    if(!sentence || !out) return false;
+    char buf[128];
+    if(strlen(sentence) >= sizeof(buf)) return false;
+    char* f[24];
+    int n = mm_nmea_fields(sentence, buf, f, 24);
+    if(n < 4 || !mm_nmea_type_is(f[0], "GSV")) return false;
+
+    memset(out, 0, sizeof(*out));
+    // Talker = the two chars after '$'.
+    const char* p = f[0];
+    while(*p == ' ' || *p == '\t' || *p == '>') p++;
+    if(*p == '$') p++;
+    out->talker[0] = p[0];
+    out->talker[1] = p[1];
+    out->talker[2] = '\0';
+
+    out->total_msgs = (int)strtol(f[1], NULL, 10);
+    out->msg_num = (int)strtol(f[2], NULL, 10);
+    out->in_view = (int)strtol(f[3], NULL, 10);
+
+    // Satellites are groups of 4 fields after field 3. A trailing signalID field
+    // (u-blox) leaves a remainder of 1, which integer division drops.
+    int groups = (n - 4) / 4;
+    if(groups > MM_GSV_MAX_SATS) groups = MM_GSV_MAX_SATS;
+    int count = 0;
+    for(int g = 0; g < groups; g++) {
+        const char* prn = f[4 + g * 4];
+        const char* elev = f[5 + g * 4];
+        const char* azim = f[6 + g * 4];
+        const char* snr = f[7 + g * 4];
+        if(prn[0] == '\0') continue; // empty group -> skip
+        MMSatInfo* s = &out->sats[count];
+        s->prn = (int)strtol(prn, NULL, 10);
+        s->elevation = (int)strtol(elev, NULL, 10);
+        s->azimuth = (int)strtol(azim, NULL, 10);
+        if(snr[0] == '\0') {
+            s->snr = 0;
+            s->has_snr = false;
+        } else {
+            s->snr = (int)strtol(snr, NULL, 10);
+            s->has_snr = true;
+        }
+        count++;
+    }
+    out->count = count;
+    return true;
+}
+
+bool mm_nmea_parse_gsa(const char* sentence, MMNmeaGsa* out) {
+    if(!sentence || !out) return false;
+    char buf[128];
+    if(strlen(sentence) >= sizeof(buf)) return false;
+    char* f[24];
+    int n = mm_nmea_fields(sentence, buf, f, 24);
+    // f[0]=$__GSA f[1]=mode1 f[2]=fixtype f[3..14]=12 PRN slots f[15..17]=P/H/V DOP
+    if(n < 18 || !mm_nmea_type_is(f[0], "GSA")) return false;
+
+    memset(out, 0, sizeof(*out));
+    out->fix_type = (int)strtol(f[2], NULL, 10);
+    int used = 0;
+    for(int i = 3; i <= 14; i++) {
+        if(f[i][0] != '\0') used++;
+    }
+    out->sats_used = used;
+    out->pdop = strtod(f[15], NULL);
+    out->hdop = strtod(f[16], NULL);
+    out->vdop = strtod(f[17], NULL);
+    return true;
+}
+
+bool mm_nmea_parse_vtg(const char* sentence, MMNmeaVtg* out) {
+    if(!sentence || !out) return false;
+    char buf[128];
+    if(strlen(sentence) >= sizeof(buf)) return false;
+    char* f[16];
+    int n = mm_nmea_fields(sentence, buf, f, 16);
+    // f[1]=course true, f[5]=speed knots, f[7]=speed km/h
+    if(n < 8 || !mm_nmea_type_is(f[0], "VTG")) return false;
+
+    memset(out, 0, sizeof(*out));
+    out->course_deg = strtod(f[1], NULL);
+    out->speed_knots = strtod(f[5], NULL);
+    out->speed_kmh = strtod(f[7], NULL);
+    return true;
+}
+
 // ===========================================================================
 // Bluetooth parsers
 // ===========================================================================

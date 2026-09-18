@@ -119,7 +119,19 @@ MMScanLineType mm_scanall_classify(const char* line) {
     return MMScanLineNone;
 }
 
-bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
+// Shared AP-beacon line parser for scanall and sniffbeacon. Handles both the
+// firmware format families we've seen on device:
+//   older/other fw:  "<rssi> Ch: <ch> <bssid> ESSID: <ssid> <m1> <m2>"
+//   v1.10.2 C5:      "<rssi> Ch: <ch> BSSID: <bssid> [ESSID Len: <n> ]ESSID: <ssid>"
+// i.e. the BSSID may be bare or carry a "BSSID: " label; sniffbeacon inserts an
+// "ESSID Len: <n>" field; and the ESSID either runs to end of line (labeled
+// form, no trailing metadata -- that moved to a separate "Beacon:" line) or
+// carries two trailing metadata tokens (old bare scanall form).
+//
+// `strip_meta_if_bare`: when true AND the line used a bare BSSID (old scanall),
+// drop the two trailing metadata tokens after the ESSID. sniffbeacon passes
+// false (its ESSID always runs to end of line).
+static bool mm_parse_ap_beacon(const char* line, MMScanAp* out, bool strip_meta_if_bare) {
     if(!line || !out) return false;
     const char* p = mm_skip_prompt(line);
 
@@ -137,7 +149,15 @@ bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
     p = end;
     while(*p == ' ') p++;
 
-    // BSSID token
+    // Optional "BSSID: " label (v1.10.2 C5); absent on the older bare form.
+    bool labeled = false;
+    if(strncmp(p, "BSSID:", 6) == 0) {
+        labeled = true;
+        p += 6;
+        while(*p == ' ') p++;
+    }
+
+    // BSSID token (17 chars).
     const char* bstart = p;
     while(*p && *p != ' ' && *p != '\t') p++;
     if((size_t)(p - bstart) != 17) return false;
@@ -145,25 +165,28 @@ bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
     memcpy(bssid, bstart, 17);
     bssid[17] = '\0';
     if(!mm_ap_is_bssid(bssid)) return false;
-    while(*p == ' ') p++;
 
-    if(strncmp(p, "ESSID:", 6) != 0) return false;
-    p += 6;
+    // Find the ESSID field. strstr skips any "ESSID Len: <n> " that precedes it
+    // ("ESSID Len:" has a space before "Len", so it is not an "ESSID:" match).
+    const char* e = strstr(p, "ESSID:");
+    if(!e) return false;
+    const char* rem = e + 6; // past "ESSID:"
 
-    // Remainder holds "<ssid> <m1> <m2>". Strip trailing whitespace, then drop
-    // the two trailing metadata tokens positionally; what's left is the ESSID.
-    const char* rem = p;
     size_t rlen = strlen(rem);
     while(rlen > 0 && (rem[rlen - 1] == '\n' || rem[rlen - 1] == '\r' ||
                        rem[rlen - 1] == ' ' || rem[rlen - 1] == '\t'))
         rlen--;
 
-    size_t i = rlen;
-    for(int tok = 0; tok < 2; tok++) {
-        while(i > 0 && rem[i - 1] != ' ' && rem[i - 1] != '\t') i--; // skip token
-        while(i > 0 && (rem[i - 1] == ' ' || rem[i - 1] == '\t')) i--; // skip gap
+    // Old bare scanall form carries two trailing metadata tokens; drop them.
+    size_t essid_end = rlen;
+    if(strip_meta_if_bare && !labeled) {
+        size_t i = rlen;
+        for(int tok = 0; tok < 2; tok++) {
+            while(i > 0 && rem[i - 1] != ' ' && rem[i - 1] != '\t') i--; // token
+            while(i > 0 && (rem[i - 1] == ' ' || rem[i - 1] == '\t')) i--; // gap
+        }
+        essid_end = i;
     }
-    size_t essid_end = i;
 
     size_t s = 0;
     while(s < essid_end && (rem[s] == ' ' || rem[s] == '\t')) s++;
@@ -186,6 +209,10 @@ bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
         strcpy(out->ssid, ssid);
     }
     return true;
+}
+
+bool mm_scanall_parse_ap(const char* line, MMScanAp* out) {
+    return mm_parse_ap_beacon(line, out, /*strip_meta_if_bare=*/true);
 }
 
 // Parse "<label>: <mac>" where label is "ap" or "sta". Advances nothing;
@@ -465,63 +492,9 @@ const char* mm_port_service_name(int port) {
 }
 
 bool mm_beacon_parse_line(const char* line, MMScanAp* out) {
-    if(!line || !out) return false;
-    const char* p = line;
-    while(*p == ' ' || *p == '\t') p++;
-    if(p[0] == '>' && p[1] == ' ') {
-        p += 2;
-        while(*p == ' ') p++;
-    }
-
-    char* end;
-    long rssi = strtol(p, &end, 10);
-    if(end == p) return false;
-    p = end;
-    while(*p == ' ') p++;
-
-    if(strncmp(p, "Ch:", 3) != 0) return false;
-    p += 3;
-    while(*p == ' ') p++;
-    long ch = strtol(p, &end, 10);
-    if(end == p) return false;
-    p = end;
-    while(*p == ' ') p++;
-
-    const char* bstart = p;
-    while(*p && *p != ' ' && *p != '\t') p++;
-    if((size_t)(p - bstart) != 17) return false;
-    char bssid[MM_BSSID_LEN];
-    memcpy(bssid, bstart, 17);
-    bssid[17] = '\0';
-    if(!mm_ap_is_bssid(bssid)) return false;
-    while(*p == ' ') p++;
-
-    if(strncmp(p, "ESSID:", 6) != 0) return false;
-    p += 6;
-    while(*p == ' ') p++;
-
-    // ESSID runs to end of line (no trailing metadata for sniffbeacon).
-    const char* rem = p;
-    size_t n = strlen(rem);
-    while(n > 0 && (rem[n - 1] == '\r' || rem[n - 1] == '\n' || rem[n - 1] == ' ' ||
-                    rem[n - 1] == '\t'))
-        n--;
-    if(n >= MM_AP_NAME_MAX) n = MM_AP_NAME_MAX - 1;
-    char ssid[MM_AP_NAME_MAX];
-    memcpy(ssid, rem, n);
-    ssid[n] = '\0';
-
-    strcpy(out->bssid, bssid);
-    out->channel = (int)ch;
-    out->rssi = (int)rssi;
-    if(n == 0 || strcmp(ssid, bssid) == 0) {
-        out->hidden = true;
-        out->ssid[0] = '\0';
-    } else {
-        out->hidden = false;
-        strcpy(out->ssid, ssid);
-    }
-    return true;
+    // sniffbeacon's ESSID always runs to end of line (its metadata is the
+    // "ESSID Len:" field, which the shared parser skips), so never strip.
+    return mm_parse_ap_beacon(line, out, /*strip_meta_if_bare=*/false);
 }
 
 bool mm_probe_parse_line(const char* line, MMScanAp* out) {

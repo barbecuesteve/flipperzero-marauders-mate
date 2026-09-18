@@ -63,6 +63,27 @@ int main(void) {
           "hyphen SSID should parse");
     CHECK(strcmp(ap.ssid, "4833-WDS") == 0, "hyphen ssid: got '%s'", ap.ssid);
 
+    // --- v1.10.2 C5 format: "BSSID:" label, no trailing metadata (moved to a
+    //     separate "Beacon:" line), ESSID runs to end of line. ---
+    CHECK(mm_scanall_parse_ap("> -77 Ch: 149 BSSID: 02:00:00:00:00:04 ESSID: Harbor View ", &ap),
+          "labeled AP (named, spaced ssid) should parse");
+    CHECK(strcmp(ap.bssid, "02:00:00:00:00:04") == 0 && strcmp(ap.ssid, "Harbor View") == 0 &&
+              ap.channel == 149 && ap.rssi == -77 && !ap.hidden,
+          "labeled named fields: bssid=%s ssid='%s' ch=%d", ap.bssid, ap.ssid, ap.channel);
+    // Labeled hidden: ESSID field repeats the BSSID.
+    CHECK(mm_scanall_parse_ap("-76 Ch: 149 BSSID: 02:00:00:00:00:01 ESSID:  02:00:00:00:00:01 ", &ap),
+          "labeled hidden should parse");
+    CHECK(ap.hidden && ap.ssid[0] == '\0', "labeled hidden -> empty ssid: '%s'", ap.ssid);
+    // Labeled hidden, heavily padded ESSID (no BSSID repeat, just spaces).
+    CHECK(mm_scanall_parse_ap(
+              "-58 Ch: 157 BSSID: 02:00:00:00:00:0f ESSID:                               ", &ap),
+          "labeled padded-hidden should parse");
+    CHECK(ap.hidden && ap.channel == 157, "labeled padded-hidden fields");
+    // A labeled AP whose SSID ends in digits must NOT lose them to metadata-strip.
+    CHECK(mm_scanall_parse_ap("-57 Ch: 157 BSSID: 02:00:00:00:00:03 ESSID: Schmetterling_5G ", &ap) &&
+              strcmp(ap.ssid, "Schmetterling_5G") == 0,
+          "labeled digit-ending ssid: got '%s'", ap.ssid);
+
     // --- station line parsing (both directions) ---
     char apb[MM_BSSID_LEN], sta[MM_BSSID_LEN];
     CHECK(mm_scanall_parse_station("15: ap: 02:00:00:00:00:04 -> sta: 01:00:5e:7f:ff:fa", apb, sta),
@@ -256,6 +277,24 @@ int main(void) {
               "beacon empty essid -> hidden");
         CHECK(!mm_beacon_parse_line("StartingBeacon sniff. Stop with stopscan", &b),
               "beacon banner rejected");
+
+        // v1.10.2 C5 format: "BSSID:" label + "ESSID Len: <n>" field before ESSID.
+        CHECK(mm_beacon_parse_line(
+                  "-82 Ch: 52 BSSID: 02:00:00:00:00:0b ESSID Len: 13 ESSID: 1740-WDS 5GHz", &b),
+              "labeled beacon (ESSID Len) parses");
+        CHECK(strcmp(b.bssid, "02:00:00:00:00:0b") == 0 && strcmp(b.ssid, "1740-WDS 5GHz") == 0 &&
+                  b.channel == 52 && b.rssi == -82 && !b.hidden,
+              "labeled beacon fields: ssid='%s' ch=%d", b.ssid, b.channel);
+        // Labeled hidden: "ESSID Len: 0 ESSID: " -> empty.
+        CHECK(mm_beacon_parse_line("-77 Ch: 149 BSSID: 02:00:00:00:00:01 ESSID Len: 0 ESSID: ", &b) &&
+                  b.hidden,
+              "labeled beacon Len 0 -> hidden");
+        // Labeled hidden padded: nonzero len but ESSID is all spaces.
+        CHECK(mm_beacon_parse_line(
+                  "-58 Ch: 157 BSSID: 02:00:00:00:00:0f ESSID Len: 30 ESSID:                    ",
+                  &b) &&
+                  b.hidden,
+              "labeled beacon padded -> hidden");
     }
 
 

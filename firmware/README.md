@@ -56,29 +56,39 @@ takes effect after reflashing with this patch. The app still sends plain
 `wardrive`; switching it to `-w` (or adding a "WiFi-only" option) is a follow-up
 once the firmware is reflashed.
 
-## Building the patched C5 image (`update.bin`)
+## Building images (`update.bin`)
 
-`build_c5.sh` builds a patched **`MARAUDER_C5`** image and emits `update.bin` —
-the app binary the firmware's `update -s` reads from an SD card to self-flash
-(see `docs/FIRMWARE.md`). It mirrors the upstream CI recipe for the
-ESP32-C5-DevKitC-1 (arduino-cli, core `esp32:esp32@3.3.4`, FQBN
-`esp32c5:FlashSize=8M,PartitionScheme=default_8MB,PSRAM=enabled`, the pinned
-library set, the `platform.txt` `-Wl,-zmuldefs` / `-fno-exceptions` fixups, and
-`-DMARAUDER_C5`).
+Two board-specific wrappers over a shared core (`_build_marauder.sh`), each
+emitting the app binary the firmware's `update -s` reads from SD to self-flash
+(see `docs/FIRMWARE.md`). They mirror upstream CI (arduino-cli, core
+`esp32:esp32@3.3.4`, the pinned library set, the `platform.txt`
+`-Wl,-zmuldefs` / `-fno-exceptions` fixups). **Outputs go to separate folders so
+the two chips' images can never be mixed up — cross-flashing bricks a board:**
+
+| script | board | flag / FQBN | screen | output dir | SD slot |
+|---|---|---|---|---|---|
+| `build_c5.sh` | ESP32-C5-DevKitC-1 | `MARAUDER_C5` / `esp32c5:…default_8MB,PSRAM=enabled` | headless | `firmware/build/c5/` | **D** (C5 radio, via Flipper bridge) |
+| `build_v6.sh` | Marauder v6 | `MARAUDER_V6` / `esp32:esp32:d32:min_spiffs` | ILI9341 320×240 | `firmware/build/v6/` | **C** (v6 UI chip, via CH340 USB) |
 
 ```sh
-# in a clean ESP32Marauder checkout (e.g. a worktree at the target tag)
-git apply /path/to/Flipper/firmware/marauder-mate.patch
-git apply /path/to/Flipper/firmware/wardrive-coexist.patch
-/path/to/Flipper/firmware/build_c5.sh "$PWD" /path/to/output
-# -> output/update.bin   (copy to the C5's SD root, then `stopscan; update -s`)
+# C5 (the radio Marauder's Mate drives): apply the patches first
+git -C <esp32marauder> apply /path/to/Flipper/firmware/marauder-mate.patch
+git -C <esp32marauder> apply /path/to/Flipper/firmware/wardrive-coexist.patch
+firmware/build_c5.sh <esp32marauder>          # -> firmware/build/c5/update.bin
+
+# v6 (the touch-UI chip): stock, no patches -- base for a custom UI fork
+firmware/build_v6.sh <clean-esp32marauder>    # -> firmware/build/v6/update.bin
 ```
 
-**Verified once (2026-09):** a `v1.17.0 + both patches` build compiles clean
-(app image ~1.86 MB, 55% of flash) and the image carries the version, the
-`ESP32-C5 DevKit` hardware string, and the capability lines. A prebuilt
-`firmware/build/update.bin` is kept locally for the pending SD card
-(gitignored — regenerate with the script).
+Flash: copy the matching `update.bin` to that board's SD **root**, then
+`stopscan; update -s` on that chip (C5 over the Flipper bridge; v6 over its
+CH340 USB). `min_spiffs` (v6) and `default_8MB` (C5) are both OTA-capable.
+
+**Verified:** C5 `v1.17.0 + both patches` (app ~1.86 MB) — flashed and running.
+v6 `v1.17.0` stock builds clean (toolchain proof + the base to fork for a custom
+icon UI; the v6's `MenuFunctions.cpp` was heavily rewritten 1.14→1.17, so fork
+1.17, not the older on-device version). `firmware/build/` is gitignored —
+regenerate with the scripts.
 
 Note: `marauder-mate.patch`'s pwnagotchi hunk needed a `getMAC(pwn_mac,
 (uint8_t*)frame, 10)` const-cast to compile (it had never been built before the

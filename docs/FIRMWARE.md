@@ -4,6 +4,13 @@ What Marauder's Mate is actually talking to, which firmware is on it, and how to
 (re)flash it. Pairs with `firmware/README.md` (the patches) and the CLAUDE.md
 "ESP32 Marauder firmware (ground truth)" section.
 
+> **Update 2026-09-18:** the C5 was flashed from v1.10.2 to a **patched
+> v1.17.0** (`firmware/build/update.bin` = v1.17.0 + `marauder-mate.patch` +
+> `wardrive-coexist.patch`) via `update -s` from its SD card (**Slot D**), over
+> the Flipper bridge — no direct port needed. This resolved every version-drift
+> issue at once (scan/beacon format, GPS labels, the missing `foxhunt` command)
+> and connected the SD (29 GB). Details in "Reflash paths" below.
+
 ## Bench unit (2026-09)
 
 A **dual-ESP** device:
@@ -11,11 +18,11 @@ A **dual-ESP** device:
 - **Marauder v6** carrier board — 2.8" ILI9341 **touch** TFT, microSD, 18650
   charging, a dual-mode 2.4 GHz ESP32. Runs the on-device WiFi/Bluetooth/GPS/
   Device/Reboot menu. Flashed firmware **v1.14.1**.
-- **ESP32-C5** radio daughterboard — **dual-band 2.4/5 GHz**, **headless** (the
-  `MARAUDER_C5` config has `HAS_SCREEN` commented out). Flashed firmware
-  **v1.10.2**. Exposes the Bluetooth (`sniffbt`/`blespam`/`btwardrive`/
-  `sniffskim`) and GPS (`gps`/`gpsdata`/`nmea`/`gpspoi`/`gpstracker`/`wardrive`)
-  commands.
+- **ESP32-C5** radio daughterboard — **dual-band 2.4/5 GHz**, **headless**.
+  Flashed firmware **v1.17.0** (patched; was v1.10.2 before 2026-09-18). Has its
+  own SD on **Slot D** (of the device's two slots, C and D). Exposes the
+  Bluetooth (`sniffbt`/`blespam`/`btwardrive`/`sniffskim`) and GPS
+  (`gps`/`gpsdata`/`nmea`/`gpspoi`/`gpstracker`/`wardrive`/`foxhunt`) commands.
 
 **The Flipper's USB-UART bridge (GPIO TX 13 / RX 14, 115200) is wired to the
 C5**, so Marauder's Mate drives the **C5 radio**, not the v6 UI chip. To capture
@@ -26,11 +33,15 @@ Bridge** mode (not running the app — the app owns the UART).
 
 ```
 Firmware: Marauder
-Version: v1.10.2
+Version: v1.17.0              <- was v1.10.2 before the 2026-09-18 reflash
 Hardware: ESP32-C5 DevKit
-ESP-IDF: v5.5.1-...
-SD Card: Not Connected        <- the C5 has no SD wired; SD lives on the v6 board
-RAM Free: ~8.5 MB             <- includes PSRAM; internal SRAM is far smaller
+ESP-IDF: v5.5.1-710-g8410210c9a
+SD Card: Connected           <- Slot D card (was "Not Connected" until a card went in)
+SD Card Size: 29850MB
+Bluetooth: Supported         <- these four are our marauder-mate.patch capability
+GPS: Connected                  lines; a single info probe now gates the whole UI
+Direct Upload: Supported
+Dual Band: Supported
 ```
 
 `Hardware: ESP32-C5 DevKit` means the flashed image was built with the
@@ -41,16 +52,19 @@ board). This distinction matters when reflashing (below).
 
 | Thing | Version | Notes |
 |---|---|---|
-| C5 daughterboard (what we drive) | **v1.10.2** | `MARAUDER_C5` config |
+| C5 daughterboard (what we drive) | **v1.17.0** (patched) | `MARAUDER_C5`; was v1.10.2 until 2026-09-18 |
 | v6 UI chip | v1.14.1 | not on our UART path |
-| Source checkout (`~/Code/Flipper/ESP32Marauder`) | **v1.16.0** nightly | ahead of both; close-but-not-exact reference |
+| Source checkout (`~/Code/Flipper/ESP32Marauder`) | **v1.16.0** nightly | worktrees at v1.17.0 used for the build |
 | Bundled C5 flasher bin (`C5_Py_Flasher_for_v8/bins/`) | v1.12.0, **v8** | wrong config for a devkit unit — see below |
 
-**Ground-truth rule:** the source has diverged from the flashed C5, so confirm
-serial formats **on device**, not from source. All of this app's GPS/BT parsers
-were built against live v1.10.2 captures, and are effectively **pinned to
-v1.10.2**. Upgrading the C5 firmware can change serial formats and would require
-re-verifying the parsers.
+**Ground-truth rule:** the source can diverge from the flashed firmware, so
+confirm serial formats **on device**, not from source. The parsers were made
+**format-agnostic** rather than version-pinned — they accept the label/format
+variants seen across firmware (e.g. `gpsdata` `Accuracy:`/`Acc:`, the
+`scanall`/`sniffbeacon` bare-vs-`BSSID:`-labeled AP line). See "Serial format
+changes across firmware versions" below. The one genuine feature gap was Fox
+Hunt: v1.10.2's `sigmon` had no targeted mode; the `foxhunt` command exists from
+newer firmware, which the 2026-09-18 flash to v1.17.0 provides.
 
 ## The web installer (justcallmekoko.github.io/MarauderInstaller)
 
@@ -114,30 +128,35 @@ and we haven't found it. Known bench ports:
 - `/dev/cu.usbserial-*` (CH340) — the **v6 board's display ESP32** (fw ~v1.14),
   **not** the C5.
 
-**Leading path — `update -s` (SD self-flash), no direct port needed.** The
-firmware's `update` command:
+**Leading path — `update -s` (SD self-flash), no direct port needed. PROVEN
+2026-09-18.** The firmware's `update` command:
 
-- `update -w` (OTA over WiFi): **dead code** (commented out in v1.10.2).
+- `update -w` (OTA over WiFi): **dead code** (commented out).
 - `update -s`: reads **`/update.bin` from the SD card root**, streams it into the
   inactive OTA partition via the ESP-IDF OTA API (`esp_ota_*`), sets it as the
   boot partition, and reboots. A **self-flash from SD** — no USB, esptool, or
   BOOT/RESET lines. Just `stopscan` then `update -s` over the existing Flipper
   bridge.
 
-This works for the C5 because `MARAUDER_C5` compiles in SD (`HAS_SD`/`USE_SD`,
-and a dedicated `HAS_C5_SD`/`HAS_SEPARATE_SD` path), and the C5-family partition
-table is dual-OTA (`otadata`/`app0`/`app1`, confirmed in the bundled
-`partitions.bin`). The device has **two SD slots** (one per ESP); the C5's slot
-just needs a card. To flash a patched build:
+It works because `MARAUDER_C5` compiles in SD (`HAS_SD`/`USE_SD`, `HAS_C5_SD`)
+and its partition table is dual-OTA. Confirmed at flash time — the C5 printed:
+`Written : 1856992 successfully / OTA done! / Currently running: app0 at 0x10000
+/ Next OTA partition: app1 at 0x1F0000 / esp_ota_set_boot_partition result:
+ESP_OK`, then rebooted into v1.17.0.
 
-1. Build `MARAUDER_C5` v1.17.0 with both patches (section B above); name the app
-   image `update.bin`.
-2. Copy `update.bin` to the root of the **C5's** SD card; insert it.
-3. Over the Flipper bridge: `stopscan`, then `update -s`. It flashes and reboots.
+The proven procedure:
 
-Verify before relying on it: (a) which SD slot actually feeds the C5, (b) that the
-flashed C5's partition table has OTA slots (very likely — the family uses
-app0/app1/otadata), and (c) keep a recovery path in case the OTA image is bad.
+1. Build `MARAUDER_C5` v1.17.0 with both patches (`firmware/build_c5.sh`); the
+   app image is `firmware/build/update.bin`.
+2. Copy it to the root of the **C5's SD card, which is Slot D** (the two device
+   slots are labeled C and D; `ls /` over the bridge showed the marker file, so
+   Slot D is the C5). Reinsert.
+3. Bridge mode → `stopscan`, then `ls /` to confirm `update.bin` is present at
+   1856992 bytes, then `update -s`. It flashes and reboots.
+
+Recovery if an OTA image is bad: re-do `update -s` with a known-good `update.bin`
+(the other OTA slot still holds the previous app until overwritten), or fall back
+to a direct-port flash.
 
 **Fallback paths** if SD self-flash is unavailable:
 
@@ -157,13 +176,13 @@ app0/app1/otadata), and (c) keep a recovery path in case the OTA image is bad.
   — the parser is buffer-level, not line-level.
 - **SD-dependent GPS features are hobbled** on this unit (no SD on the C5):
   `gpspoi`, `gpstracker`, `upload` emit little/no serial and can't save.
-- **`wardrive` crashes the C5** deterministically: it runs WiFi + BLE
-  concurrently, exhausting NimBLE's NPL event pool (`npl_freertos_event_init`
-  assert) ~1-2 s into the BLE phase. Diagnosis and the fix (time-slice the
-  radios + a `wardrive -w` WiFi-only flag) are in `firmware/wardrive-coexist.patch`
-  / `firmware/README.md`. The WiFi wardrive line parser
-  (`mm_wardrive_parse_line`) is done and tested; the **live wardrive scene is on
-  hold** until the C5 is reflashed with the fix (then point it at `wardrive -w`).
+- **`wardrive`**: on stock firmware it ran WiFi + BLE concurrently and crashed
+  the C5 (`npl_freertos_event_init` assert, NimBLE NPL event-pool exhaustion) ~1-2 s
+  into the BLE phase. `wardrive-coexist.patch` (time-slice the radios + a
+  `wardrive -w` WiFi-only flag) is **in the flashed v1.17.0 build** — needs a
+  fresh on-device confirmation that the crash is gone. The WiFi wardrive line
+  parser (`mm_wardrive_parse_line`) is done and tested; a live wardrive scene can
+  now be built (point it at `wardrive -w` for the WiFi-only sweep).
 
 ## Serial format changes across firmware versions
 

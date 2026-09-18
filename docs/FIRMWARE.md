@@ -102,6 +102,31 @@ for host unit tests. Steps (deferred "C5 time" — toolchain not yet set up):
    **0x10000** (app), 921600 baud. (Point it at *your* freshly built bins, not
    the bundled v8 bin.)
 
+### OPEN: how do we physically flash the C5? (unresolved)
+
+`c5_flasher.py` assumes a **direct** connection to the C5 with esptool auto-reset
+(`--before default_reset` → DTR/RTS toggling EN/IO0), and it waits for the C5's
+own serial port to appear. **We have not found that port yet.** Known ports on
+the bench:
+
+- `/dev/cu.usbmodemflip_*` — the **Flipper**; its GPIO USB-UART bridge reaches
+  the C5's **UART only** (TX/RX, no DTR/RTS to EN/IO0). Good for CLI/capture, not
+  for esptool auto-reset.
+- `/dev/cu.usbserial-*` (CH340) — the **v6 board's display ESP32** (fw ~v1.14),
+  **not** the C5.
+
+So the C5's programming interface is currently unidentified. Candidate paths, to
+resolve before a reflash:
+
+- **Find/expose a direct C5 USB or UART0 + EN/IO0** (castellated pads or a
+  header) and flash normally with `c5_flasher.py`.
+- **Flash over the Flipper UART bridge with manual bootloader entry** — hold the
+  C5's BOOT (IO0) low, tap RESET, then esptool `--before no_reset --after
+  hard_reset` over the Flipper port. Feasible only if BOOT/RESET are accessible
+  and the bridge passes esptool's SLIP protocol reliably; **untested**.
+- **Reuse whatever method put v1.10.2 on it originally** — that path is the
+  answer; document it here once known.
+
 ## What this means for the app
 
 - **GPS** (`GPS Data`, `GPS Sats` scenes): fully working on v1.10.2. `gpsdata`

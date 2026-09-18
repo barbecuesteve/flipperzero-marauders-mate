@@ -445,3 +445,31 @@ typedef struct {
 // Parse one btwardrive line. Anchors on ",,[BLE]," (the MAC is the 17 chars
 // before it). Tolerates a leading "> " prompt. Returns false if not a record.
 bool mm_btwardrive_parse_line(const char* line, MMBtWardrive* out);
+
+// One WiFi `wardrive` record. The firmware prints a display cursor glued with
+// " | " to a WiGLE CSV line, e.g. (confirmed on device, v1.10.2):
+//   "1 | 28:37:37:47:B6:FA,1740-WDS,[WPA2_PSK],2026-09-18 10:56:45,11,-44,33.74,-84.32,285.30,2.25,WIFI"
+// CSV order: <bssid>,<ssid>,<auth>,<datetime>,<channel>,<rssi>,<lat>,<lon>,
+// <alt>,<accuracy>,WIFI. SSIDs have their commas replaced with '_' by the
+// firmware, so a plain comma split is safe. An empty ssid field is a hidden AP.
+// NOTE: on this firmware `wardrive` runs a WiFi sweep and THEN a BLE phase; the
+// BLE transition was observed to crash the C5 (NimBLE assert), so treat the WiFi
+// burst as the usable window. BLE-phase lines match mm_btwardrive_parse_line.
+typedef struct {
+    char bssid[18];
+    char ssid[MM_AP_NAME_MAX]; // "" when hidden
+    char auth[24]; // "[WPA2_PSK]", "[WEP]", "[WPA2_WPA3_PSK]", ...
+    char datetime[MM_GPS_STR];
+    int channel;
+    int rssi;
+    char lat[MM_GPS_STR];
+    char lon[MM_GPS_STR];
+    char alt[MM_GPS_STR];
+    char accuracy[MM_GPS_STR];
+    bool hidden;
+} MMWardriveAp;
+
+// Parse one WiFi wardrive line. Uses the " | " prefix when present (else starts
+// after any "> " prompt), requires a trailing ",WIFI" and a valid leading
+// BSSID. Returns false otherwise (banners, "APs: N" summary, BLE lines).
+bool mm_wardrive_parse_line(const char* line, MMWardriveAp* out);

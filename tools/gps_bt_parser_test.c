@@ -228,6 +228,57 @@ int main(void) {
               "GSA rejects GSV");
     }
 
+    // ===================== WiFi wardrive CSV line =====================
+    {
+        MMWardriveAp w;
+        // Named AP with the "<cursor> | " prefix (synthetic BSSID/SSID).
+        CHECK(mm_wardrive_parse_line(
+                  "1 | 02:00:00:00:00:01,TestNet,[WPA2_PSK],2026-09-18 10:56:45,11,-44,"
+                  "33.7418976,-84.3218460,285.30,2.25,WIFI",
+                  &w),
+              "wardrive named parses");
+        CHECK(strcmp(w.bssid, "02:00:00:00:00:01") == 0, "wardrive bssid: '%s'", w.bssid);
+        CHECK(strcmp(w.ssid, "TestNet") == 0 && !w.hidden, "wardrive ssid: '%s'", w.ssid);
+        CHECK(strcmp(w.auth, "[WPA2_PSK]") == 0, "wardrive auth: '%s'", w.auth);
+        CHECK(w.channel == 11 && w.rssi == -44, "wardrive ch/rssi: %d/%d", w.channel, w.rssi);
+        CHECK(strcmp(w.datetime, "2026-09-18 10:56:45") == 0, "wardrive dt");
+        CHECK(strcmp(w.lat, "33.7418976") == 0 && strcmp(w.lon, "-84.3218460") == 0, "wardrive coords");
+        CHECK(strcmp(w.alt, "285.30") == 0 && strcmp(w.accuracy, "2.25") == 0, "wardrive alt/acc");
+
+        // Hidden AP (empty ssid field) on a 5 GHz channel, WEP auth.
+        CHECK(mm_wardrive_parse_line(
+                  "5 | 02:00:00:00:00:05,,[WEP],2026-09-18 10:56:45,157,-68,33.74,-84.32,285.3,2.25,WIFI",
+                  &w),
+              "wardrive hidden parses");
+        CHECK(w.hidden && w.ssid[0] == '\0', "wardrive hidden -> empty ssid");
+        CHECK(w.channel == 157 && strcmp(w.auth, "[WEP]") == 0, "wardrive 5GHz/WEP");
+
+        // SSID with a space (no comma -- firmware replaces commas), WPA2/WPA3.
+        CHECK(mm_wardrive_parse_line(
+                  "8 | 02:00:00:00:00:08,My Printer 5G,[WPA2_WPA3_PSK],2026-09-18 10:56:45,44,-59,"
+                  "33.74,-84.32,285.3,2.25,WIFI",
+                  &w) &&
+                  strcmp(w.ssid, "My Printer 5G") == 0,
+              "wardrive spaced ssid: '%s'", w.ssid);
+
+        // Works without the "<cursor> | " prefix too.
+        CHECK(mm_wardrive_parse_line(
+                  "02:00:00:00:00:09,Bare,[WPA2_PSK],2026-09-18 10:56:45,6,-70,33.74,-84.32,285.3,2.25,WIFI",
+                  &w) &&
+                  strcmp(w.ssid, "Bare") == 0,
+              "wardrive no-prefix parses");
+
+        // Rejections: banner, the "APs: N" summary, and a BLE-phase line.
+        CHECK(!mm_wardrive_parse_line("Starting Wardrive. Stop with stopscan", &w),
+              "wardrive banner rejected");
+        CHECK(!mm_wardrive_parse_line("APs: 21", &w), "wardrive summary rejected");
+        CHECK(!mm_wardrive_parse_line(
+                  "Device: 02:00:00:00:00:0a02:00:00:00:00:0a,,[BLE],2026-09-18 10:56:45,0,-66,"
+                  "33.74,-84.32,285.3,2.25,BLE",
+                  &w),
+              "wardrive rejects BLE line");
+    }
+
     if(failures == 0) {
         printf("OK: all gps+bt-parser tests passed\n");
         return 0;

@@ -1332,3 +1332,53 @@ bool mm_btwardrive_parse_line(const char* line, MMBtWardrive* out) {
     mm_copy_field(f[6], NULL, out->accuracy, sizeof(out->accuracy));
     return true;
 }
+
+bool mm_wardrive_parse_line(const char* line, MMWardriveAp* out) {
+    if(!line || !out) return false;
+
+    // Data starts after the "<cursor> | " display prefix when present; else
+    // after any "> " prompt.
+    const char* data = strstr(line, " | ");
+    if(data)
+        data += 3;
+    else
+        data = mm_skip_prompt(line);
+
+    char buf[160];
+    if(strlen(data) >= sizeof(buf)) return false;
+    strcpy(buf, data);
+    size_t n = strlen(buf);
+    while(n > 0 && (buf[n - 1] == '\r' || buf[n - 1] == '\n' || buf[n - 1] == ' ')) buf[--n] = '\0';
+
+    // A real record ends in ",WIFI"; this rejects banners and the "APs: N" line.
+    const size_t suffix_len = 5; // ",WIFI"
+    if(n < suffix_len || strcmp(buf + n - suffix_len, ",WIFI") != 0) return false;
+
+    // Comma-split (SSID commas are pre-replaced with '_' by the firmware).
+    char* f[12];
+    int count = 0;
+    f[count++] = buf;
+    for(char* q = buf; *q && count < 12; q++) {
+        if(*q == ',') {
+            *q = '\0';
+            f[count++] = q + 1;
+        }
+    }
+    // f: [0]bssid [1]ssid [2]auth [3]datetime [4]ch [5]rssi [6]lat [7]lon
+    //    [8]alt [9]accuracy [10]WIFI
+    if(count < 11) return false;
+    if(!mm_ap_is_bssid(f[0])) return false;
+
+    strcpy(out->bssid, f[0]);
+    mm_copy_field(f[1], NULL, out->ssid, sizeof(out->ssid));
+    mm_copy_field(f[2], NULL, out->auth, sizeof(out->auth));
+    mm_copy_field(f[3], NULL, out->datetime, sizeof(out->datetime));
+    out->channel = (int)strtol(f[4], NULL, 10);
+    out->rssi = (int)strtol(f[5], NULL, 10);
+    mm_copy_field(f[6], NULL, out->lat, sizeof(out->lat));
+    mm_copy_field(f[7], NULL, out->lon, sizeof(out->lon));
+    mm_copy_field(f[8], NULL, out->alt, sizeof(out->alt));
+    mm_copy_field(f[9], NULL, out->accuracy, sizeof(out->accuracy));
+    out->hidden = (out->ssid[0] == '\0');
+    return true;
+}

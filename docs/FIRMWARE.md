@@ -17,7 +17,8 @@ A **dual-ESP** device:
 
 - **Marauder v6** carrier board — 2.8" ILI9341 **touch** TFT, microSD, 18650
   charging, a dual-mode 2.4 GHz ESP32. Runs the on-device WiFi/Bluetooth/GPS/
-  Device/Reboot menu. Flashed firmware **v1.14.1**.
+  Device/Reboot menu. Flashed firmware **v1.17.0** (stock; was v1.14.1 before 2026-09-27).
+  Reachable directly over its onboard CH340 USB (/dev/cu.usbserial-*).
 - **ESP32-C5** radio daughterboard — **dual-band 2.4/5 GHz**, **headless**.
   Flashed firmware **v1.17.0** (patched; was v1.10.2 before 2026-09-18). Has its
   own SD on **Slot D** (of the device's two slots, C and D). Exposes the
@@ -53,7 +54,7 @@ board). This distinction matters when reflashing (below).
 | Thing | Version | Notes |
 |---|---|---|
 | C5 daughterboard (what we drive) | **v1.17.0** (patched) | `MARAUDER_C5`; was v1.10.2 until 2026-09-18 |
-| v6 UI chip | v1.14.1 | not on our UART path |
+| v6 UI chip | v1.17.0 (stock) | not on our UART path; wired to the C5 (inter-chip UART) |
 | Source checkout (`~/Code/Flipper/ESP32Marauder`) | **v1.16.0** nightly | worktrees at v1.17.0 used for the build |
 | Bundled C5 flasher bin (`C5_Py_Flasher_for_v8/bins/`) | v1.12.0, **v8** | wrong config for a devkit unit — see below |
 
@@ -125,8 +126,9 @@ and we haven't found it. Known bench ports:
 - `/dev/cu.usbmodemflip_*` — the **Flipper**; its GPIO USB-UART bridge reaches
   the C5's **UART only** (TX/RX, no DTR/RTS). Good for CLI/capture, not esptool
   auto-reset.
-- `/dev/cu.usbserial-*` (CH340) — the **v6 board's display ESP32** (fw ~v1.14),
-  **not** the C5.
+- `/dev/cu.usbserial-*` (CH340) — the **v6 board's display ESP32** (v1.17.0 stock),
+  **not** the C5. The v6 flashes over this port the same way — `update -s` from its
+  **Slot C** card — proven 2026-09-27.
 
 **Leading path — `update -s` (SD self-flash), no direct port needed. PROVEN
 2026-09-18.** The firmware's `update` command:
@@ -157,6 +159,15 @@ The proven procedure:
 Recovery if an OTA image is bad: re-do `update -s` with a known-good `update.bin`
 (the other OTA slot still holds the previous app until overwritten), or fall back
 to a direct-port flash.
+
+**SD-swap gotcha (bit us on the v6 flash):** the firmware mounts the SD **only at
+boot**. After you pull a card, copy to it, and reinsert, the old mount is stale —
+`ls /` shows nothing (or `info` still says "Connected" from the previous boot),
+and a `reboot` may print `Failed to mount SD Card`. Two rules: (1) **eject the
+card cleanly from the Mac** — a dirty FAT/exFAT dirty-bit makes the firmware
+refuse to mount (a Disk Utility First Aid pass clears it); (2) after reinserting,
+**power-cycle/reboot** so it re-mounts, then `ls /` to confirm `update.bin` before
+`update -s`. Cards must be **FAT32**.
 
 **Fallback paths** if SD self-flash is unavailable:
 

@@ -84,12 +84,26 @@ sh tools/run_tests.sh     # host-side C unit tests for the parsers
 
 ## ESP32 Marauder firmware (ground truth)
 
-The firmware we talk to is checked out at **`/Users/barbecuesteve/Code/ESP32Marauder/`**.
+The firmware we talk to is checked out at **`/Users/barbecuesteve/Code/Flipper/ESP32Marauder/`**.
 It is the authoritative source for **every serial format and command behavior** —
 read it to confirm formats rather than guessing or capturing on-device. Key files:
 `esp32_marauder/CommandLine.cpp` (command dispatch), `WiFiScan.cpp` (scan/sniff
-output + `RunInfo`), `configs.h` (per-board `HAS_*` capability defines; this board
-is `MARAUDER_FLIPPER` = ESP32-S2, WiFi-only, no BT). Remotes: `origin` = upstream
+output + `RunInfo`), `configs.h` (per-board `HAS_*` capability defines).
+**Current bench unit (2026-09):** a **dual-ESP** device — a **Marauder v6**
+(touch TFT, runs the on-device WiFi/Bluetooth/GPS/Device/Reboot menu; fw v1.14.1)
+carrying an **ESP32-C5** dual-band (2.4/5 GHz) radio daughterboard (headless — the
+`MARAUDER_C5` config has `HAS_SCREEN` commented out; fw v1.10.2, exposes BT
+`sniffbt`/`blespam`/`btwardrive`/`sniffskim` and GPS `gps`/`gpspoi`/`gpstracker`).
+**The Flipper's USB-UART bridge (GPIO TX 13 / RX 14, 115200) is wired to the C5**,
+so Marauder's Mate drives the C5 radio, not the v6 UI chip. Flash targets differ:
+C5 via `../ESP32Marauder/C5_Py_Flasher_for_v8/c5_flasher.py` (esptool `--chip
+esp32c5`, offsets 0x2000/0x8000/0x10000, 921600 baud); the v6 flashes straight over its onboard **CH340** USB bridge
+(`/dev/cu.usbserial-*`, VID 0x1A86/PID 0x7523). NOTE: sending serial to the v6
+also drives its touch display (CommandLine and on-device UI are coupled).
+Source checkout is **v1.16.0**, ahead of both flashed versions — close-but-not-exact
+reference; confirm serial formats on device. (Older board: `MARAUDER_FLIPPER` =
+ESP32-S2, WiFi-only, no BT.)
+Remotes: `origin` = upstream
 (justcallmekoko) — the PR base, **don't push to it**; `fork` =
 `barbecuesteve/ESP32Marauder` — push patch branches here to open PRs upstream.
 

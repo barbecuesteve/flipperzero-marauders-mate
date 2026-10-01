@@ -149,6 +149,11 @@ struct WifiMarauderApp {
     int open_log_file_num_pages;
 
     WifiMarauderUart* uart;
+    // Direct GPS on LPUART1 (pins 15/16), independent of the Marauder USART.
+    // NULL when the channel couldn't be acquired. See docs/MULTI_RADIO.md.
+    WifiMarauderUart* gps_uart;
+    volatile bool gps_direct_present; // NMEA bytes have arrived on gps_uart
+    volatile uint32_t gps_direct_bytes; // running RX byte count (liveness)
     int selected_menu_index; // flat index into items[] of the highlighted row
     int selected_option_index[NUM_MENU_ITEMS];
     // Protocol-category menu state

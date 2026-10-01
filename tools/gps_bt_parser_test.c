@@ -308,6 +308,34 @@ int main(void) {
               "wardrive rejects BLE line");
     }
 
+    // ============ Direct-GPS LPUART stream: no-fix NMEA (G1) ============
+    // Captured 2026-09-28 from LPUART 15/16 indoors (no fix). The sat-view
+    // parsers must accept this stream without choking: GSV with 00 in view,
+    // GSA reporting no fix. See dumps/lpuart_gps_nmea_15-16.txt.
+    {
+        MMNmeaGsv v;
+        CHECK(mm_nmea_parse_gsv("$GPGSV,1,1,00,0*65", &v), "LPUART empty GPGSV parses");
+        CHECK(v.in_view == 0 && v.count == 0, "LPUART GPGSV: 0 in view, 0 carried");
+
+        MMNmeaGsv vb;
+        CHECK(mm_nmea_parse_gsv("$BDGSV,1,1,00,0*74", &vb), "LPUART empty BDGSV parses");
+        CHECK(strncmp(vb.talker, "BD", 2) == 0 && vb.in_view == 0, "LPUART BDGSV talker/in_view");
+
+        MMNmeaGsa a;
+        CHECK(mm_nmea_parse_gsa("$GNGSA,A,1,,,,,,,,,,,,,25.5,25.5,25.5,1*01", &a),
+              "LPUART no-fix GNGSA parses");
+        CHECK(a.fix_type == 1 && a.sats_used == 0, "LPUART GNGSA: no fix, 0 sats used");
+
+        // A no-position GGA (all fields blank) must not report a valid fix.
+        MMNmeaGga g;
+        (void)mm_nmea_parse_gga("$GNGGA,,,,,,0,00,25.5,,,,,,*64", &g);
+        // Whether it returns true or false, it must never claim a valid fix here.
+        MMNmeaGga g2;
+        if(mm_nmea_parse_gga("$GNGGA,,,,,,0,00,25.5,,,,,,*64", &g2)) {
+            CHECK(!g2.valid && g2.fix_quality == 0, "LPUART empty GGA: not a valid fix");
+        }
+    }
+
     if(failures == 0) {
         printf("OK: all gps+bt-parser tests passed\n");
         return 0;

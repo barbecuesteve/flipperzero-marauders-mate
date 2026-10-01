@@ -11,6 +11,9 @@
 #define MM_SAT_TAG "MM-SAT"
 #define MM_SAT_DBG_MAX 60
 static int mm_sat_dbg_lines;
+// Source of the NMEA stream this session: true = direct GPS on LPUART (15/16),
+// false = the C5's `nmea` command over the Marauder USART. Chosen on enter.
+static bool s_gps_direct;
 
 // A sat not re-sent within this many ticks (~100ms each => ~3s) has dropped.
 #define MM_SAT_STALE_TICKS 30
@@ -70,7 +73,9 @@ static void wifi_marauder_gps_sats_draw(WifiMarauderApp* app) {
         fixstr = "2D fix";
     else if(app->sat_fix_type == 3)
         fixstr = "3D fix";
-    widget_add_string_element(widget, 2, 1, AlignLeft, AlignTop, FontSecondary, fixstr);
+    char fixline[24];
+    snprintf(fixline, sizeof(fixline), "%s %s", fixstr, s_gps_direct ? "LPUART" : "C5");
+    widget_add_string_element(widget, 2, 1, AlignLeft, AlignTop, FontSecondary, fixline);
 
     if(app->sat_fix_type >= 2 || app->sat_hdop_x10 > 0) {
         char h[32];
@@ -143,14 +148,24 @@ void wifi_marauder_scene_gps_sats_on_enter(void* context) {
 
     wifi_marauder_gps_sats_draw(app);
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewWidget);
-
-    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_gps_sats_rx_cb);
-    wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
-
     mm_sat_dbg_lines = 0;
-    const char* cmd = "nmea\n";
-    wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
-    FURI_LOG_I(MM_SAT_TAG, "launch nmea");
+
+    // Prefer the direct GPS on LPUART: it streams NMEA continuously (no command)
+    // and leaves the C5 link free. Fall back to the C5 `nmea` command if LPUART
+    // can't be opened -- busy, or hardware with no GPS on 15/16.
+    app->gps_uart = wifi_marauder_uart_gps_init(app);
+    s_gps_direct = (app->gps_uart != NULL);
+    if(s_gps_direct) {
+        wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL); // C5 stays quiet
+        wifi_marauder_uart_set_handle_rx_data_cb(app->gps_uart, wifi_marauder_gps_sats_rx_cb);
+        wifi_marauder_uart_set_handle_rx_pcap_cb(app->gps_uart, NULL);
+        FURI_LOG_I(MM_SAT_TAG, "sat view: direct LPUART GPS");
+    } else {
+        wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_gps_sats_rx_cb);
+        wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)"nmea\n", strlen("nmea\n"));
+        FURI_LOG_I(MM_SAT_TAG, "sat view: C5 nmea");
+    }
 }
 
 bool wifi_marauder_scene_gps_sats_on_event(void* context, SceneManagerEvent event) {
@@ -212,7 +227,16 @@ bool wifi_marauder_scene_gps_sats_on_event(void* context, SceneManagerEvent even
 
 void wifi_marauder_scene_gps_sats_on_exit(void* context) {
     WifiMarauderApp* app = context;
-    wifi_marauder_uart_tx(app->uart, (uint8_t*)("stopscan\n"), strlen("stopscan\n"));
-    wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
+    if(s_gps_direct) {
+        // Close the direct GPS UART and hand LPUART back to the log console.
+        if(app->gps_uart) {
+            wifi_marauder_uart_set_handle_rx_data_cb(app->gps_uart, NULL);
+            wifi_marauder_uart_gps_free(app->gps_uart);
+            app->gps_uart = NULL;
+        }
+    } else {
+        wifi_marauder_uart_tx(app->uart, (uint8_t*)("stopscan\n"), strlen("stopscan\n"));
+        wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL);
+    }
     widget_reset(app->widget);
 }

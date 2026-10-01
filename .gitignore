@@ -29,6 +29,9 @@ splash_resized.png
 *.db
 .beads-credential-key
 .beads/proxieddb/
+.beads.gate.lock
+.beads/dolt-backup.json
+.beads/dolt-backup-state.json
 
 # Built ESP firmware artifacts (regenerate with firmware/build_c5.sh)
 firmware/build/

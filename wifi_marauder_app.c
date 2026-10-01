@@ -6,6 +6,7 @@
 #include <flipper_format/flipper_format.h>
 
 #define MM_NET_MAX 48 // max networks kept in the auto-join bank
+#define MM_TAG "MarauderMate" // FURI_LOG tag
 
 bool mm_save_network_password(WifiMarauderApp* app, const char* ssid, const char* pass) {
     if(!ssid || ssid[0] == '\0' || !pass || pass[0] == '\0') return false;
@@ -277,6 +278,7 @@ void wifi_marauder_app_free(WifiMarauderApp* app) {
     view_dispatcher_free(app->view_dispatcher);
     scene_manager_free(app->scene_manager);
 
+    if(app->gps_uart) wifi_marauder_uart_gps_free(app->gps_uart);
     wifi_marauder_uart_free(app->uart);
 
     // Close records
@@ -369,6 +371,10 @@ int32_t wifi_marauder_app(void* p) {
     wifi_marauder_load_settings(wifi_marauder_app);
 
     wifi_marauder_app->uart = wifi_marauder_usart_init(wifi_marauder_app);
+    // NOTE: the direct-GPS LPUART is NOT opened here. Opening a second UART on
+    // the launch path put any fault (or lock) in the way of app startup. It is
+    // now opened on demand from the Device Info scene ("Probe direct GPS") and
+    // closed immediately after, so startup is never at risk. See G0/G3.
 
     // Launch the first scene now that the UART is ready (the category menu
     // probes BT over UART on enter).

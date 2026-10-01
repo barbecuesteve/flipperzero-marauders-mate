@@ -29,6 +29,7 @@ typedef enum {
     WifiMarauderEventStartGpsSats,
     WifiMarauderEventStartDeviceInfo,
     WifiMarauderEventDeviceRedetect,
+    WifiMarauderEventGpsProbe, // Device Info: probe direct GPS on LPUART (G0)
     WifiMarauderEventOpenLedPicker,
     WifiMarauderEventOpenRebootConfirm,
     WifiMarauderEventOpenSettingsMenu,

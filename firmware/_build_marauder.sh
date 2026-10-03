@@ -67,12 +67,17 @@ for cf in $(find "$HOME/Library/Arduino15/packages/esp32/tools/esp32-arduino-lib
     || sed -i 's/-fexceptions/-fno-exceptions/g' "$cf"
 done
 
-echo ">> [$MM_LABEL] compiling ${MM_FLAG}"
+# Monotonic build number = git commit count of the source being built; mark the
+# image dirty when the tree has uncommitted changes. Baked in via -D (configs.h
+# turns these into "...-v7 b<num>[+]" shown on boot + over serial).
+BUILD_NUM="$(git -C "$MM_SRC" rev-list --count HEAD 2>/dev/null || echo 0)"
+[ -n "$(git -C "$MM_SRC" status --porcelain 2>/dev/null)" ] && DIRTY=1 || DIRTY=0
+echo ">> [$MM_LABEL] compiling ${MM_FLAG} (build ${BUILD_NUM}, dirty=${DIRTY})"
 mkdir -p "$MM_OUT"
 arduino-cli compile \
   --fqbn "$MM_FQBN" \
   --libraries "$LIBS" \
-  --build-property "compiler.cpp.extra_flags=-D${MM_FLAG}" \
+  --build-property "compiler.cpp.extra_flags=-D${MM_FLAG} -DMARAUDER_BUILD=${BUILD_NUM} -DMARAUDER_BUILD_DIRTY=${DIRTY}" \
   --warnings none \
   --output-dir "$MM_OUT" \
   "$MM_SRC/esp32_marauder/esp32_marauder.ino"

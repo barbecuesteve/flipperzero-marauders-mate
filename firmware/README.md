@@ -118,3 +118,28 @@ clone at `~/Code/ESP32Marauder` also carries the change in its working tree. Tha
 clone has a fork remote (`fork` = `barbecuesteve/ESP32Marauder`) for opening a PR:
 branch from `master`, commit the change, push to `fork`, and PR against upstream.
 `origin` there is upstream — don't push to it.
+
+## Build scripts (`firmware/*.sh`)
+
+Reproducible arduino-cli builds of the Marauder firmware for our boards. These
+build the **custom v6 fork at `~/Code/Flipper/marauder-v7`** (branch `v7-ui`), not
+the patch clone above.
+
+- `build_v6.sh <src> [outdir]` — Marauder **v6** (ESP32-WROOM-32U, `MARAUDER_V6`,
+  ILI9341). Emits `esp32_marauder.ino.merged.bin` (esptool @ 0x0) + `update.bin`
+  (on-device `update -s`). See `marauder-v7/docs/BUILD_FLASH.md` for flashing.
+- `build_c5.sh <src> [outdir]` — the C5 daughterboard (`MARAUDER_C5`).
+- `_build_marauder.sh` — shared core (installs esp32@3.3.4, clones pinned libs,
+  configures TFT_eSPI, patches platform flags, compiles). Env hooks:
+  - `MM_LIBS=<dir>` — persistent lib cache (skip re-clone each build).
+  - `MM_ONLY_DB=1` + `MM_BUILD_PATH=<dir>` — emit a clangd `compile_commands.json`
+    instead of a firmware image (used by `gen_compile_db.sh`).
+  - `MM_RESULT=WORKS|FAILS` — label the auto-saved build forensics.
+  - After every build it runs `save_build_forensics.sh` (non-fatal).
+- `gen_compile_db.sh <src>` — generate `compile_commands.json` so VSCode/clangd
+  resolves ESP32 core + library headers (kills the phantom `FS.h not found`
+  errors). Clones libs once into a gitignored `.ide/` cache in the source tree.
+- `save_build_forensics.sh <elf> <archive> [label] [result]` — archive a build's
+  nm symbol map + section sizes + reproducing source diff. This corpus proved the
+  v6 SD-link failure is flash-layout-gated and RAM-invariant (bead
+  `marauder-v7-rvw`; snapshot on the NAS at `/volume1/git/marauder-v7-forensics/`).

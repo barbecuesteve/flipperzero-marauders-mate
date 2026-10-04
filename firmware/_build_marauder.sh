@@ -16,14 +16,17 @@ set -euo pipefail
 MM_TFT_SETUP="${MM_TFT_SETUP:-}"
 CORE_VER="3.3.4"
 CORE_URL="https://github.com/espressif/arduino-esp32/releases/download/${CORE_VER}/package_esp32_dev_index.json"
-LIBS="$(mktemp -d)/libs"; mkdir -p "$LIBS"
+# Libraries dir. Default: a throwaway temp dir (cloned fresh each build). Set
+# MM_LIBS to a persistent path (e.g. a gitignored scratch dir) to cache the
+# clones across builds -- clone() below skips any lib already present.
+LIBS="${MM_LIBS:-$(mktemp -d)/libs}"; mkdir -p "$LIBS"
 
 echo ">> [$MM_LABEL] installing esp32:esp32@${CORE_VER} (idempotent)"
 arduino-cli core update-index --additional-urls "$CORE_URL" >/dev/null
 arduino-cli core install "esp32:esp32@${CORE_VER}" --additional-urls "$CORE_URL"
 
 echo ">> [$MM_LABEL] cloning pinned libraries"
-clone() { git clone --depth 1 --branch "$2" "https://github.com/$1" "$LIBS/$3" >/dev/null 2>&1; }
+clone() { [ -d "$LIBS/$3" ] && return 0; git clone --depth 1 --branch "$2" "https://github.com/$1" "$LIBS/$3" >/dev/null 2>&1; }
 clone marian-craciunescu/ESP32Ping           1.6      ESP32Ping
 clone ESP32Async/AsyncTCP                     v3.4.8   AsyncTCP
 clone stevemarple/MicroNMEA                   v2.0.6   MicroNMEA
@@ -39,7 +42,7 @@ clone ivanseidel/LinkedList                   v1.3.3   LinkedList
 clone plerup/espsoftwareserial               8.1.0    EspSoftwareSerial
 clone adafruit/Adafruit_BusIO                 1.15.0   Adafruit_BusIO
 clone adafruit/Adafruit_MAX1704X             1.0.2    Adafruit_MAX1704X
-cp -r "$MM_SRC/libraries/Adafruit_TCA8418" "$LIBS/Adafruit_TCA8418"
+[ -d "$LIBS/Adafruit_TCA8418" ] || cp -r "$MM_SRC/libraries/Adafruit_TCA8418" "$LIBS/Adafruit_TCA8418"
 
 echo ">> [$MM_LABEL] configuring TFT_eSPI"
 rm -f "$LIBS/TFT_eSPI/User_Setup_Select.h"
@@ -72,8 +75,26 @@ done
 # turns these into "...-v7 b<num>[+]" shown on boot + over serial).
 BUILD_NUM="$(git -C "$MM_SRC" rev-list --count HEAD 2>/dev/null || echo 0)"
 [ -n "$(git -C "$MM_SRC" status --porcelain 2>/dev/null)" ] && DIRTY=1 || DIRTY=0
-echo ">> [$MM_LABEL] compiling ${MM_FLAG} (build ${BUILD_NUM}, dirty=${DIRTY})"
 mkdir -p "$MM_OUT"
+
+# DB-only mode (MM_ONLY_DB=1): emit a clangd compile_commands.json for the IDE
+# instead of a firmware image. Needs a stable --build-path so the database isn't
+# thrown away with a temp dir. Used by gen_compile_db.sh.
+if [ "${MM_ONLY_DB:-0}" = "1" ]; then
+  echo ">> [$MM_LABEL] generating compilation database for ${MM_FLAG}"
+  arduino-cli compile \
+    --fqbn "$MM_FQBN" \
+    --libraries "$LIBS" \
+    --build-property "compiler.cpp.extra_flags=-D${MM_FLAG} -DMARAUDER_BUILD=${BUILD_NUM} -DMARAUDER_BUILD_DIRTY=${DIRTY}" \
+    --warnings none \
+    --only-compilation-database \
+    --build-path "${MM_BUILD_PATH:?MM_ONLY_DB requires MM_BUILD_PATH}" \
+    "$MM_SRC/esp32_marauder/esp32_marauder.ino"
+  echo ">> [$MM_LABEL] compile_commands.json: ${MM_BUILD_PATH}/compile_commands.json"
+  exit 0
+fi
+
+echo ">> [$MM_LABEL] compiling ${MM_FLAG} (build ${BUILD_NUM}, dirty=${DIRTY})"
 arduino-cli compile \
   --fqbn "$MM_FQBN" \
   --libraries "$LIBS" \
@@ -86,3 +107,14 @@ arduino-cli compile \
 cp "$MM_OUT/esp32_marauder.ino.bin" "$MM_OUT/update.bin"
 echo ">> [$MM_LABEL] done: $MM_OUT/update.bin"
 ls -la "$MM_OUT/update.bin"
+
+# Memory-map forensics: archive this build's symbol map so layout shifts can be
+# cross-referenced against SD pass/fail (the layout Heisenbug). Non-fatal; the
+# result starts UNKNOWN -- set MM_RESULT=WORKS|FAILS to label, or edit meta.txt
+# after the device test. Default archive is a gitignored scratch dir in the src.
+MMHERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -f "$MM_OUT/esp32_marauder.ino.elf" ]; then
+  bash "$MMHERE/save_build_forensics.sh" "$MM_OUT/esp32_marauder.ino.elf" \
+    "${MM_FORENSICS:-$MM_SRC/.build-forensics}" "${MM_LABEL}-b${BUILD_NUM}" \
+    "${MM_RESULT:-UNKNOWN}" || true
+fi

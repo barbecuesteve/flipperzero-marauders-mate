@@ -11,6 +11,11 @@ static MMMonRec s_rec[MM_MON_MAX];
 static int s_count;
 static int s_order[MM_MON_MAX];
 static int s_ticks;
+static bool s_dual_band; // dual-band hardware? (captured at mm_monitor_start)
+
+bool mm_monitor_dual_band(void) {
+    return s_dual_band;
+}
 
 static void mm_monitor_rx_cb(uint8_t* buf, size_t len, void* context) {
     WifiMarauderApp* app = context;
@@ -78,6 +83,7 @@ static void mm_monitor_rebuild(WifiMarauderApp* app, const MMMonDef* def) {
 void mm_monitor_start(WifiMarauderApp* app, const MMMonDef* def) {
     s_count = 0;
     s_ticks = 0;
+    s_dual_band = (app->dual_band_state == MMCapYes);
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
 
@@ -120,12 +126,17 @@ void mm_monitor_tick(WifiMarauderApp* app, const MMMonDef* def) {
         MMMonRec rec;
         memset(&rec, 0, sizeof(rec));
         if(def->parse(line, &rec)) {
+            // A 5 GHz sighting proves dual-band hardware (works on stock fw).
+            mm_dual_band_observe(&app->dual_band_state, rec.channel);
             mm_monitor_upsert(def, &rec);
             changed = true;
         }
         furi_string_right(app->scan_line, len + 1);
         if(++processed >= MM_MON_LINES_PER_TICK) break;
     }
+    // Re-read dual-band each tick so a mid-scan 5 GHz latch (above) reaches the
+    // label formatter -- which has no app pointer -- on the very next rebuild.
+    s_dual_band = (app->dual_band_state == MMCapYes);
     if(changed && (++s_ticks % MM_MON_REBUILD_TICKS == 0)) {
         mm_monitor_rebuild(app, def);
     }

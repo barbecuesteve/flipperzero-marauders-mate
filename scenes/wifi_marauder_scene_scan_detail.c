@@ -114,7 +114,10 @@ void wifi_marauder_scene_scan_detail_on_enter(void* context) {
     }
 
     char line[40];
-    snprintf(line, sizeof(line), "CH %d   %d dBm", ap->channel, ap->rssi);
+    // Tag 5 GHz on dual-band hardware (2.4-only boards never report ch>14).
+    const char* band =
+        (app->dual_band_state == MMCapYes && mm_channel_is_5ghz(ap->channel)) ? " 5G" : "";
+    snprintf(line, sizeof(line), "CH %d%s   %d dBm", ap->channel, band, ap->rssi);
     submenu_add_item(submenu, line, MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
     submenu_add_item(submenu, ap->bssid, MM_D_INFO, wifi_marauder_scan_detail_item_cb, app);
 

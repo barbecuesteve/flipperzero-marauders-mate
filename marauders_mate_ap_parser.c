@@ -812,6 +812,19 @@ MMCap mm_info_line_dual_band(const char* line) {
     return MMCapUnknown;
 }
 
+bool mm_channel_is_5ghz(int channel) {
+    // 2.4 GHz is channels 1..14; the 5 GHz hop set starts at 32 (WiFiScan.h).
+    return channel > 14;
+}
+
+bool mm_dual_band_observe(MMCap* state, int channel) {
+    if(!state) return false;
+    if(!mm_channel_is_5ghz(channel)) return false; // 2.4 GHz proves nothing
+    if(*state == MMCapYes) return false; // already latched
+    *state = MMCapYes;
+    return true;
+}
+
 MMJoinLineType mm_join_classify(const char* line) {
     if(!line) return MMJoinLineNone;
     if(mm_ci_strstr(line, "fail") || mm_ci_strstr(line, "disconnect") ||

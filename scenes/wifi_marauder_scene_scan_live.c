@@ -102,12 +102,15 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
         int i = s_order[k]; // store index for this display row
         MMScanAp* a = &app->scan_aps[i];
         const char* name = a->hidden ? "[hidden]" : a->ssid;
+        // Tag 5 GHz APs on dual-band hardware; 2.4-only boards never see ch>14.
+        const char* band =
+            (app->dual_band_state == MMCapYes && mm_channel_is_5ghz(a->channel)) ? " 5G" : "";
         if(app->scan_clients[i] > 0) {
             snprintf(
-                label, sizeof(label), "%s C%d %d %dc", name, a->channel, a->rssi,
+                label, sizeof(label), "%s C%d%s %d %dc", name, a->channel, band, a->rssi,
                 app->scan_clients[i]);
         } else {
-            snprintf(label, sizeof(label), "%s C%d %d", name, a->channel, a->rssi);
+            snprintf(label, sizeof(label), "%s C%d%s %d", name, a->channel, band, a->rssi);
         }
         // Callback value is the STORE index, not the display row, so sorting
         // never disturbs the select-index mapping.
@@ -139,6 +142,10 @@ static bool wifi_marauder_scan_live_process_line(WifiMarauderApp* app, const cha
     if(type == MMScanLineAp) {
         MMScanAp cur;
         if(!mm_scanall_parse_ap(line, &cur)) return false;
+        // A 5 GHz sighting proves the radio is dual-band (works on stock fw,
+        // before the info "Dual Band" line exists). Latched; the next rebuild
+        // reads dual_band_state directly, so tags light up mid-scan.
+        mm_dual_band_observe(&app->dual_band_state, cur.channel);
         bool is_new = false;
         int idx = mm_scan_store_upsert(app->scan_aps, &app->scan_ap_count, MM_AP_MAX, &cur, &is_new);
         if(idx >= 0 && is_new) {

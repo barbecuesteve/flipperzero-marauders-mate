@@ -13,7 +13,9 @@ static bool beacon_parse(const char* line, MMMonRec* out) {
 }
 
 static void beacon_label(const MMMonRec* r, char* buf, size_t sz) {
-    snprintf(buf, sz, "%lux %s C%d", (unsigned long)r->hits, r->t1, r->channel);
+    // Tag 5 GHz beacons on dual-band hardware so the band is obvious at a glance.
+    const char* band = (mm_monitor_dual_band() && mm_channel_is_5ghz(r->channel)) ? " 5G" : "";
+    snprintf(buf, sz, "%lux %s C%d%s", (unsigned long)r->hits, r->t1, r->channel, band);
 }
 
 static const MMMonDef s_def = {

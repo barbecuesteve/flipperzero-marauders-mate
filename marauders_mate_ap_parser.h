@@ -240,6 +240,21 @@ MMCap mm_info_line_direct_upload(const char* line);
 // Stored for the incoming C5; not yet gating any UI.
 MMCap mm_info_line_dual_band(const char* line);
 
+// True if `channel` is a 5 GHz channel. Marauder's dual-band hop set is 1..14
+// (2.4 GHz) then 32..177 (5 GHz) -- see WiFiScan.h `dual_band_channels[]` -- so
+// any channel above 14 is 5 GHz. Channel numbers come straight off the serial
+// line (`[CH:n]`, `Ch: n`) and are never clamped, so 5 GHz values pass through.
+// Used to tag 5 GHz APs in the UI (gated on dual-band hardware by the caller).
+bool mm_channel_is_5ghz(int channel);
+
+// One-way latch inferring dual-band hardware from observation: a 2.4-only radio
+// can never report a channel >14, so a single 5 GHz sighting is positive proof
+// the radio is dual-band -- even on stock firmware whose `info` omits the
+// "Dual Band" line. Promotes *state to MMCapYes when `channel` is 5 GHz; never
+// downgrades (a <=14 channel leaves *state alone). Returns true iff it changed
+// *state. Complements mm_info_line_dual_band(); both signals set MMCapYes.
+bool mm_dual_band_observe(MMCap* state, int channel);
+
 typedef enum {
     MMJoinLineNone, // nothing conclusive
     MMJoinLineConnecting, // "Connecting to WiFi"

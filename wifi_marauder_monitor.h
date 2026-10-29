@@ -40,3 +40,8 @@ typedef struct {
 void mm_monitor_start(WifiMarauderApp* app, const MMMonDef* def);
 void mm_monitor_tick(WifiMarauderApp* app, const MMMonDef* def);
 void mm_monitor_stop(WifiMarauderApp* app, const MMMonDef* def);
+
+// True when the running monitor is on dual-band (5 GHz) hardware
+// (app->dual_band_state == MMCapYes at start). Captured by mm_monitor_start so a
+// label formatter -- which has no app pointer -- can gate a 5 GHz band tag.
+bool mm_monitor_dual_band(void);

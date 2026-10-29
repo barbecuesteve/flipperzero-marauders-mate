@@ -70,6 +70,7 @@ typedef struct {
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
 #define MM_STA_MAX (96) // total unique (AP, station) pairs kept across a scan
+#define MM_BT_MAX (24) // BLE devices kept in the live sniffbt list (RAM-bounded)
 
 typedef struct {
     char mac[MM_BSSID_LEN]; // station MAC
@@ -232,6 +233,15 @@ struct WifiMarauderApp {
     MMStation scan_stations[MM_STA_MAX]; // stations seen, deduped per (AP, MAC)
     int scan_station_count;
     int sta_selected; // scan_stations[] index of the client being acted on
+
+    // Marauder's Mate: BLE device list (C5). A live `sniffbt` scan, deduped by
+    // advertised name / MAC into a rolling store mirroring the AP list UX.
+    MMBtDevice bt_devices[MM_BT_MAX]; // dedup store (name or MAC is the key)
+    uint32_t bt_last_tick[MM_BT_MAX]; // bt_ticks when last re-sighted (stale-eviction)
+    int bt_seen[MM_BT_MAX]; // times this device has been sighted
+    int bt_device_count;
+    int bt_selected; // bt_devices[] index of the device being inspected
+    uint32_t bt_ticks; // monotonic tick counter for the BLE scan view
 
     // Marauder's Mate: Fox Hunt RSSI meter
     int fox_rssi; // latest raw RSSI reading

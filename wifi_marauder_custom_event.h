@@ -39,5 +39,8 @@ typedef enum {
     WifiMarauderEventStaSelected,
     WifiMarauderEventStaDeauth,
     WifiMarauderEventStaFoxHunt,
+    // Marauder's Mate: BLE device list (C5)
+    WifiMarauderEventStartBtList,
+    WifiMarauderEventBtSelected,
     WifiMarauderEventPrevScene
 } WifiMarauderCustomEvent;

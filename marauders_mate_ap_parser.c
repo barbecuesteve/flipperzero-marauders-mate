@@ -1149,6 +1149,75 @@ bool mm_nmea_parse_vtg(const char* sentence, MMNmeaVtg* out) {
     return true;
 }
 
+// --- NMEA -> MMGpsFix bridge (direct-LPUART GPS feeds the GPS Data view) -----
+
+// Format signed decimal degrees/metres to `frac` fractional digits using integer
+// math. The target builds with -Werror=double-promotion and the firmware's float
+// printf is avoided elsewhere, so %f is off the table; this splits into integer
+// and fractional parts and prints them as longs. Magnitudes are small (|lat|<=90,
+// |lon|<=180, scaled by 1e6 => <=1.8e8, within a 32-bit long).
+static void mm_fmt_fixed(double v, int frac, char* out, size_t n) {
+    bool neg = v < 0;
+    double a = neg ? -v : v;
+    long scale = 1;
+    for(int i = 0; i < frac; i++) scale *= 10;
+    const double half = 0.5;
+    long scaled = (long)(a * (double)scale + half);
+    long ip = scaled / scale;
+    long fp = scaled % scale;
+    snprintf(out, n, "%s%ld.%0*ld", neg ? "-" : "", ip, frac, fp);
+}
+
+// RMC date "DDMMYY" + time "HHMMSS" -> "20YY-MM-DD HH:MM:SS" (matches the string
+// shape the C5 `gpsdata` path stores). Falls back to time-only if no date.
+static void mm_nmea_datetime(const char* date, const char* time, char* out, size_t n) {
+    bool have_date = date && strlen(date) >= 6;
+    bool have_time = time && strlen(time) >= 6;
+    if(have_date && have_time) {
+        snprintf(
+            out,
+            n,
+            "20%c%c-%c%c-%c%c %c%c:%c%c:%c%c",
+            date[4], date[5], date[2], date[3], date[0], date[1],
+            time[0], time[1], time[2], time[3], time[4], time[5]);
+    } else if(have_time) {
+        snprintf(out, n, "%c%c:%c%c:%c%c", time[0], time[1], time[2], time[3], time[4], time[5]);
+    }
+}
+
+bool mm_gps_fix_update_nmea(const char* sentence, MMGpsFix* fix) {
+    if(!sentence || !fix) return false;
+
+    MMNmeaGga g;
+    if(mm_nmea_parse_gga(sentence, &g)) {
+        fix->has_fix = g.valid;
+        fix->sats = g.sats;
+        fix->have_sats = true;
+        if(g.valid) {
+            mm_fmt_fixed(g.lat_deg, 6, fix->lat, sizeof(fix->lat));
+            mm_fmt_fixed(g.lon_deg, 6, fix->lon, sizeof(fix->lon));
+            mm_fmt_fixed(g.alt_m, 1, fix->alt, sizeof(fix->alt));
+        }
+        return true;
+    }
+
+    MMNmeaRmc r;
+    if(mm_nmea_parse_rmc(sentence, &r)) {
+        if(r.date[0] || r.time[0])
+            mm_nmea_datetime(r.date, r.time, fix->datetime, sizeof(fix->datetime));
+        // Position fallback: only fill from RMC when a GGA hasn't already, so the
+        // richer GGA position (with altitude) wins when both are streaming.
+        if(r.active && fix->lat[0] == '\0') {
+            mm_fmt_fixed(r.lat_deg, 6, fix->lat, sizeof(fix->lat));
+            mm_fmt_fixed(r.lon_deg, 6, fix->lon, sizeof(fix->lon));
+        }
+        if(r.active) fix->has_fix = true;
+        return true;
+    }
+
+    return false;
+}
+
 // ===========================================================================
 // Bluetooth parsers
 // ===========================================================================

@@ -19,15 +19,20 @@ static const char* const ESP_NAMES[MM_N_ESP] =
 enum {
     MM_ROW_PCAP = MM_N_ESP,
     MM_ROW_LOGS,
+    MM_ROW_GPS,
     MM_ROW_SAVE,
     MM_ROW_LOAD,
     MM_ROW_RESTORE,
 };
 
 static const char* const s_onoff[] = {"Off", "On"};
+// GPS source toggle: index 0 = direct LPUART, index 1 = the ESP command path
+// (`gpsdata`/`nmea` over the Marauder USART; whatever radio is on 13/14).
+static const char* const s_gpssrc[] = {"Direct", "ESP"};
 
 static bool s_esp[MM_N_ESP]; // current ESP values
 static VariableItem* s_toggle_item[MM_N_ESP + 2]; // 6 ESP + pcap + logs
+static VariableItem* s_gps_item; // GPS source selector
 static int s_ticks;
 static bool s_built;
 
@@ -116,6 +121,20 @@ static void wifi_marauder_settings_menu_load_profile(WifiMarauderApp* app) {
 static void wifi_marauder_settings_menu_change_cb(VariableItem* item) {
     WifiMarauderApp* app = variable_item_get_context(item);
     uint8_t idx = variable_item_get_current_value_index(item);
+    // The GPS source row has its own value labels; handle it before the Off/On
+    // toggles so its text isn't overwritten with "Off"/"On".
+    if(item == s_gps_item) {
+        variable_item_set_current_value_text(item, s_gpssrc[idx ? 1 : 0]);
+        app->gps_prefer_direct = (idx == 0);
+        File* f = storage_file_alloc(app->storage);
+        if(storage_file_open(
+               f, MM_GPS_SOURCE_SETTING_FILEPATH, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+            storage_file_write(f, app->gps_prefer_direct ? "D" : "C", 1);
+        }
+        storage_file_close(f);
+        storage_file_free(f);
+        return;
+    }
     variable_item_set_current_value_text(item, s_onoff[idx ? 1 : 0]);
     for(int i = 0; i < MM_N_ESP; i++) {
         if(item == s_toggle_item[i]) {
@@ -168,6 +187,12 @@ static void wifi_marauder_settings_menu_build(WifiMarauderApp* app) {
         app, "Save pcaps->Flipper", app->ok_to_save_pcaps, MM_N_ESP);
     wifi_marauder_settings_menu_add_toggle(
         app, "Save logs->Flipper", app->ok_to_save_logs, MM_N_ESP + 1);
+
+    // GPS source: Direct (LPUART NMEA) vs C5 (command over the Marauder USART).
+    s_gps_item = variable_item_list_add(
+        vil, "GPS source", 2, wifi_marauder_settings_menu_change_cb, app);
+    variable_item_set_current_value_index(s_gps_item, app->gps_prefer_direct ? 0 : 1);
+    variable_item_set_current_value_text(s_gps_item, s_gpssrc[app->gps_prefer_direct ? 0 : 1]);
 
     variable_item_list_add(vil, "Save profile->Flipper", 1, NULL, app);
     variable_item_list_add(vil, "Load profile<-Flipper", 1, NULL, app);

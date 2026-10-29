@@ -33,7 +33,7 @@ static void wifi_marauder_gps_data_draw(WifiMarauderApp* app) {
     widget_reset(widget);
 
     char title[24];
-    snprintf(title, sizeof(title), "GPS Data %s", s_gps_direct ? "LPUART" : "C5");
+    snprintf(title, sizeof(title), "GPS Data %s", s_gps_direct ? "LPUART" : "ESP");
     widget_add_string_element(widget, 2, 2, AlignLeft, AlignTop, FontSecondary, title);
 
     // Header right: fix + satellite count, the two things you check first.
@@ -88,7 +88,7 @@ void wifi_marauder_scene_gps_data_on_enter(void* context) {
     // Prefer the direct GPS on LPUART: it streams NMEA continuously (no command)
     // and leaves the C5 link free. Fall back to the C5 `gpsdata` command if
     // LPUART can't be opened -- busy, or hardware with no GPS on 15/16.
-    app->gps_uart = wifi_marauder_uart_gps_init(app);
+    app->gps_uart = app->gps_prefer_direct ? wifi_marauder_uart_gps_init(app) : NULL;
     s_gps_direct = (app->gps_uart != NULL);
     if(s_gps_direct) {
         wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL); // C5 stays quiet
@@ -100,7 +100,7 @@ void wifi_marauder_scene_gps_data_on_enter(void* context) {
         wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
         const char* cmd = "gpsdata\n";
         wifi_marauder_uart_tx(app->uart, (uint8_t*)cmd, strlen(cmd));
-        FURI_LOG_I(MM_GPS_TAG, "gps data: C5 gpsdata");
+        FURI_LOG_I(MM_GPS_TAG, "gps data: ESP gpsdata");
     }
 }
 

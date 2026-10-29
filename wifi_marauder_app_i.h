@@ -106,6 +106,7 @@ typedef enum {
 #define MARAUDER_APP_FOLDER_USER_LOGS MARAUDER_APP_FOLDER_USER "/logs"
 #define SAVE_PCAP_SETTING_FILEPATH MARAUDER_APP_FOLDER "/save_pcaps_here.setting"
 #define SAVE_LOGS_SETTING_FILEPATH MARAUDER_APP_FOLDER "/save_logs_here.setting"
+#define MM_GPS_SOURCE_SETTING_FILEPATH MARAUDER_APP_FOLDER "/gps_source.setting"
 // Optional user-supplied WiFi passwords for auto-join. Plaintext on the SD
 // card (unencrypted, removable) -- user's own networks, user's own risk. Never
 // committed; a networks.txt.example ships with placeholders only.
@@ -154,6 +155,11 @@ struct WifiMarauderApp {
     WifiMarauderUart* gps_uart;
     volatile bool gps_direct_present; // NMEA bytes have arrived on gps_uart
     volatile uint32_t gps_direct_bytes; // running RX byte count (liveness)
+    // GPS-source preference (Settings). true = prefer the direct LPUART NMEA
+    // stream (fall back to the C5 command if it can't open); false = force the
+    // C5 `gpsdata`/`nmea` command over the Marauder USART. Persisted; default
+    // true. The GPS views show which source actually took in their header.
+    bool gps_prefer_direct;
     int selected_menu_index; // flat index into items[] of the highlighted row
     int selected_option_index[NUM_MENU_ITEMS];
     // Protocol-category menu state

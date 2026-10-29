@@ -129,6 +129,7 @@ WifiMarauderApp* wifi_marauder_app_alloc() {
     app->gps_state = MMCapUnknown;
     app->direct_upload_state = MMCapUnknown;
     app->dual_band_state = MMCapUnknown;
+    app->gps_prefer_direct = true; // prefer direct LPUART GPS; overridden by Settings
 
     app->special_case_input_step = 0;
 
@@ -248,6 +249,19 @@ void wifi_marauder_load_settings(WifiMarauderApp* app) {
         app->ok_to_save_logs = ok[0] == 'Y';
     }
     storage_file_close(app->save_logs_setting_file);
+
+    // GPS source: 'C' forces the C5 command path; anything else (incl. a missing
+    // file) keeps the default direct-LPUART preference.
+    {
+        File* f = storage_file_alloc(app->storage);
+        if(storage_file_open(f, MM_GPS_SOURCE_SETTING_FILEPATH, FSAM_READ, FSOM_OPEN_EXISTING)) {
+            char c[1] = {0};
+            storage_file_read(f, c, sizeof(c));
+            app->gps_prefer_direct = (c[0] != 'C');
+        }
+        storage_file_close(f);
+        storage_file_free(f);
+    }
 }
 
 void wifi_marauder_app_free(WifiMarauderApp* app) {

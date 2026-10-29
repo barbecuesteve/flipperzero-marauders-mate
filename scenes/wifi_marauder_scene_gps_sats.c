@@ -74,7 +74,7 @@ static void wifi_marauder_gps_sats_draw(WifiMarauderApp* app) {
     else if(app->sat_fix_type == 3)
         fixstr = "3D fix";
     char fixline[24];
-    snprintf(fixline, sizeof(fixline), "%s %s", fixstr, s_gps_direct ? "LPUART" : "C5");
+    snprintf(fixline, sizeof(fixline), "%s %s", fixstr, s_gps_direct ? "LPUART" : "ESP");
     widget_add_string_element(widget, 2, 1, AlignLeft, AlignTop, FontSecondary, fixline);
 
     if(app->sat_fix_type >= 2 || app->sat_hdop_x10 > 0) {
@@ -153,7 +153,7 @@ void wifi_marauder_scene_gps_sats_on_enter(void* context) {
     // Prefer the direct GPS on LPUART: it streams NMEA continuously (no command)
     // and leaves the C5 link free. Fall back to the C5 `nmea` command if LPUART
     // can't be opened -- busy, or hardware with no GPS on 15/16.
-    app->gps_uart = wifi_marauder_uart_gps_init(app);
+    app->gps_uart = app->gps_prefer_direct ? wifi_marauder_uart_gps_init(app) : NULL;
     s_gps_direct = (app->gps_uart != NULL);
     if(s_gps_direct) {
         wifi_marauder_uart_set_handle_rx_data_cb(app->uart, NULL); // C5 stays quiet
@@ -164,7 +164,7 @@ void wifi_marauder_scene_gps_sats_on_enter(void* context) {
         wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_gps_sats_rx_cb);
         wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
         wifi_marauder_uart_tx(app->uart, (uint8_t*)"nmea\n", strlen("nmea\n"));
-        FURI_LOG_I(MM_SAT_TAG, "sat view: C5 nmea");
+        FURI_LOG_I(MM_SAT_TAG, "sat view: ESP nmea");
     }
 }
 

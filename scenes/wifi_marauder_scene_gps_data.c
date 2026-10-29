@@ -32,11 +32,7 @@ static void wifi_marauder_gps_data_draw(WifiMarauderApp* app) {
     Widget* widget = app->widget;
     widget_reset(widget);
 
-    char title[24];
-    snprintf(title, sizeof(title), "GPS Data %s", s_gps_direct ? "LPUART" : "ESP");
-    widget_add_string_element(widget, 2, 2, AlignLeft, AlignTop, FontSecondary, title);
-
-    // Header right: fix + satellite count, the two things you check first.
+    // Header left: fix + satellite count, the two things you check first.
     char hdr[24];
     const MMGpsFix* g = &app->gps_fix;
     if(g->have_sats) {
@@ -44,7 +40,16 @@ static void wifi_marauder_gps_data_draw(WifiMarauderApp* app) {
     } else {
         snprintf(hdr, sizeof(hdr), "%s", g->has_fix ? "Fix" : "No fix");
     }
-    widget_add_string_element(widget, 126, 2, AlignRight, AlignTop, FontSecondary, hdr);
+    widget_add_string_element(widget, 2, 2, AlignLeft, AlignTop, FontSecondary, hdr);
+
+    // Header right: GPS source. The satellite icon means the enhanced direct
+    // LPUART NMEA feed is live; "ESP" means the `gpsdata` command path over the
+    // Marauder USART.
+    if(s_gps_direct) {
+        widget_add_icon_element(widget, 110, 0, &I_Satellite_16x16);
+    } else {
+        widget_add_string_element(widget, 126, 2, AlignRight, AlignTop, FontSecondary, "ESP");
+    }
 
     if(!app->gps_have) {
         // No block has parsed yet: acquiring a fix / waiting for the module.

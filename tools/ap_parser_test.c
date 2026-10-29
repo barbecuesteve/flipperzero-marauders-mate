@@ -51,6 +51,23 @@ int main(void) {
     CHECK(ap.hidden, "bssid row should be flagged hidden");
     CHECK(strcmp(ap.name, "02:00:00:00:00:02") == 0, "bssid name: got '%s'", ap.name);
 
+    // --- 5 GHz (dual-band C5): channels 36..177 must pass through unclamped ---
+    CHECK(mm_ap_parse_line("[7][CH:149] Schmetterling_5G -58", &ap), "5GHz list -a should parse");
+    CHECK(ap.channel == 149, "5GHz channel kept: got %d", ap.channel);
+    CHECK(strcmp(ap.name, "Schmetterling_5G") == 0, "5GHz name: got '%s'", ap.name);
+    CHECK(mm_ap_parse_line("[8][CH:36] CoastNet -41", &ap) && ap.channel == 36,
+          "5GHz low channel 36: got %d", ap.channel);
+    CHECK(mm_ap_parse_line("[9][CH:177] EdgeNet -70", &ap) && ap.channel == 177,
+          "5GHz top channel 177: got %d", ap.channel);
+
+    // --- band predicate: 1..14 are 2.4 GHz; above is 5 GHz ---
+    CHECK(!mm_channel_is_5ghz(1), "ch 1 is 2.4GHz");
+    CHECK(!mm_channel_is_5ghz(6), "ch 6 is 2.4GHz");
+    CHECK(!mm_channel_is_5ghz(14), "ch 14 is 2.4GHz");
+    CHECK(mm_channel_is_5ghz(36), "ch 36 is 5GHz");
+    CHECK(mm_channel_is_5ghz(149), "ch 149 is 5GHz");
+    CHECK(mm_channel_is_5ghz(177), "ch 177 is 5GHz");
+
     // noise lines must be rejected
     CHECK(!mm_ap_parse_line("#list -a", &ap), "command echo rejected");
     CHECK(!mm_ap_parse_line("0 selected", &ap), "'selected' line rejected");

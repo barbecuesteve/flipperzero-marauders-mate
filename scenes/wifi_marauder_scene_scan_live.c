@@ -102,12 +102,15 @@ static void wifi_marauder_scan_live_rebuild(WifiMarauderApp* app, bool sorted) {
         int i = s_order[k]; // store index for this display row
         MMScanAp* a = &app->scan_aps[i];
         const char* name = a->hidden ? "[hidden]" : a->ssid;
+        // Tag 5 GHz APs on dual-band hardware; 2.4-only boards never see ch>14.
+        const char* band =
+            (app->dual_band_state == MMCapYes && mm_channel_is_5ghz(a->channel)) ? " 5G" : "";
         if(app->scan_clients[i] > 0) {
             snprintf(
-                label, sizeof(label), "%s C%d %d %dc", name, a->channel, a->rssi,
+                label, sizeof(label), "%s C%d%s %d %dc", name, a->channel, band, a->rssi,
                 app->scan_clients[i]);
         } else {
-            snprintf(label, sizeof(label), "%s C%d %d", name, a->channel, a->rssi);
+            snprintf(label, sizeof(label), "%s C%d%s %d", name, a->channel, band, a->rssi);
         }
         // Callback value is the STORE index, not the display row, so sorting
         // never disturbs the select-index mapping.

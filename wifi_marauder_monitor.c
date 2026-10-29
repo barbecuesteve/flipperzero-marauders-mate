@@ -11,6 +11,11 @@ static MMMonRec s_rec[MM_MON_MAX];
 static int s_count;
 static int s_order[MM_MON_MAX];
 static int s_ticks;
+static bool s_dual_band; // dual-band hardware? (captured at mm_monitor_start)
+
+bool mm_monitor_dual_band(void) {
+    return s_dual_band;
+}
 
 static void mm_monitor_rx_cb(uint8_t* buf, size_t len, void* context) {
     WifiMarauderApp* app = context;
@@ -78,6 +83,7 @@ static void mm_monitor_rebuild(WifiMarauderApp* app, const MMMonDef* def) {
 void mm_monitor_start(WifiMarauderApp* app, const MMMonDef* def) {
     s_count = 0;
     s_ticks = 0;
+    s_dual_band = (app->dual_band_state == MMCapYes);
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
 

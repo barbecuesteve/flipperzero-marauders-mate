@@ -44,7 +44,7 @@ const WifiMarauderItem items[] = {
     {"View SSIDs", {""}, 1, {"list -s"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatSpoof},
     {"Clear SSIDs", {""}, 1, {"clearlist -s"}, NO_ARGS, FOCUS_CONSOLE_END, NO_TIP, MMCatSpoof},
     {"AirTags", {""}, 1, {"list -t"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
-    {"BT Devices", {""}, 1, {"list -b"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
+    {"BT Devices", {""}, 1, {"btlist"}, NO_ARGS, FOCUS_CONSOLE_START, NO_TIP, MMCatBluetooth},
     {"Set STA MAC",
      {"rand", "clone"},
      2,
@@ -322,6 +322,12 @@ static void wifi_marauder_scene_start_var_list_enter_callback(void* context, uin
         return;
     }
 
+    // Marauder's Mate: live BLE device list (C5 sniffbt).
+    if(app->selected_tx_string && strcmp(app->selected_tx_string, "btlist") == 0) {
+        view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventStartBtList);
+        return;
+    }
+
     // Marauder's Mate: drill into a WiFi sub-menu (AP Spoofing / Air Attacks)
     if(app->selected_tx_string && strcmp(app->selected_tx_string, "spoofmenu") == 0) {
         app->sub_category = MMCatSpoof;
@@ -522,6 +528,10 @@ bool wifi_marauder_scene_start_on_event(void* context, SceneManagerEvent event) 
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
             scene_manager_next_scene(app->scene_manager, WifiMarauderSceneGpsSats);
+        } else if(event.event == WifiMarauderEventStartBtList) {
+            scene_manager_set_scene_state(
+                app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);
+            scene_manager_next_scene(app->scene_manager, WifiMarauderSceneBtList);
         } else if(event.event == WifiMarauderEventStartDeviceInfo) {
             scene_manager_set_scene_state(
                 app->scene_manager, WifiMarauderSceneStart, app->selected_menu_index);

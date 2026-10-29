@@ -70,7 +70,7 @@ typedef struct {
 // Marauder's Mate: parsed AP list feature
 #define MM_AP_MAX (64)
 #define MM_STA_MAX (96) // total unique (AP, station) pairs kept across a scan
-#define MM_BT_MAX (48) // BLE devices kept in the live sniffbt list
+#define MM_BT_MAX (24) // BLE devices kept in the live sniffbt list (RAM-bounded)
 
 typedef struct {
     char mac[MM_BSSID_LEN]; // station MAC

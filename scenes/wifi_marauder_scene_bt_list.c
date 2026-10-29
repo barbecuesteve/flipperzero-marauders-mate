@@ -13,8 +13,15 @@
 #define MM_BT_TAG "MM-BT"
 // A device not re-sighted within this many ticks (~100ms each) ages out.
 #define MM_BT_STALE_TICKS 100 // ~10s
-// Safety cap on the accumulation buffer if markers stop arriving.
-#define MM_BT_SCAN_BUF 1536
+// Safety cap on the accumulation buffer if markers stop arriving. Kept small:
+// the whole loaded .fap (text+data+bss) shares one contiguous RAM block, and
+// large statics here starve the runtime heap (-> out-of-memory on load).
+#define MM_BT_SCAN_BUF 512
+
+// Set when we leave for the detail scene, so the next on_enter resumes (keeps
+// the accumulated device store) instead of starting a fresh scan. Any other
+// exit (back to the menu) leaves it false -> fresh scan next time.
+static bool s_bt_resume;
 
 static void wifi_marauder_bt_list_rx_cb(uint8_t* buf, size_t len, void* context) {
     WifiMarauderApp* app = context;
@@ -128,19 +135,32 @@ static bool wifi_marauder_bt_list_consume(WifiMarauderApp* app) {
 void wifi_marauder_scene_bt_list_on_enter(void* context) {
     WifiMarauderApp* app = context;
 
-    app->bt_device_count = 0;
+    bool resume = s_bt_resume;
+    s_bt_resume = false;
+
+    if(!resume) app->bt_device_count = 0; // fresh entry wipes the store
     app->bt_ticks = 0;
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
 
-    submenu_reset(app->submenu);
-    submenu_set_header(app->submenu, "Scanning BLE...");
+    // Populate the submenu BEFORE switching to it, so the first painted frame
+    // already shows the list (avoids a flicker from an empty intermediate frame
+    // on the way back from detail).
+    if(resume) {
+        // Returning from detail: show the list we already built and keep the
+        // cursor on the device the user drilled into.
+        wifi_marauder_bt_list_rebuild(app);
+        submenu_set_selected_item(app->submenu, (uint32_t)app->bt_selected);
+    } else {
+        submenu_reset(app->submenu);
+        submenu_set_header(app->submenu, "Scanning BLE...");
+    }
     view_dispatcher_switch_to_view(app->view_dispatcher, WifiMarauderAppViewSubmenu);
 
     wifi_marauder_uart_set_handle_rx_data_cb(app->uart, wifi_marauder_bt_list_rx_cb);
     wifi_marauder_uart_set_handle_rx_pcap_cb(app->uart, NULL);
     wifi_marauder_uart_tx(app->uart, (uint8_t*)"sniffbt\n", strlen("sniffbt\n"));
-    FURI_LOG_I(MM_BT_TAG, "BLE list: sniffbt");
+    FURI_LOG_I(MM_BT_TAG, resume ? "BLE list: resume sniffbt" : "BLE list: sniffbt");
 }
 
 bool wifi_marauder_scene_bt_list_on_event(void* context, SceneManagerEvent event) {
@@ -148,6 +168,7 @@ bool wifi_marauder_scene_bt_list_on_event(void* context, SceneManagerEvent event
     bool consumed = false;
 
     if(event.type == SceneManagerEventTypeCustom && event.event == WifiMarauderEventBtSelected) {
+        s_bt_resume = true; // keep the store across the round-trip to detail
         scene_manager_next_scene(app->scene_manager, WifiMarauderSceneBtDetail);
         consumed = true;
     } else if(event.type == SceneManagerEventTypeTick) {

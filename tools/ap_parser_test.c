@@ -68,6 +68,38 @@ int main(void) {
     CHECK(mm_channel_is_5ghz(149), "ch 149 is 5GHz");
     CHECK(mm_channel_is_5ghz(177), "ch 177 is 5GHz");
 
+    // --- dual-band inferred from observation (one-way latch) ---
+    {
+        // A list -a line on a 5 GHz channel flips Unknown -> inferred dual-band.
+        MMCap cap = MMCapUnknown;
+        CHECK(mm_ap_parse_line("[3][CH:149] Net5 -55", &ap), "5GHz list -a parses");
+        CHECK(mm_dual_band_observe(&cap, ap.channel) && cap == MMCapYes,
+              "5GHz list -a sighting latches MMCapYes (was %d)", cap);
+
+        // A scanall AP line on a 5 GHz channel does the same.
+        MMScanAp sa;
+        MMCap cap_s = MMCapUnknown;
+        CHECK(mm_scanall_parse_ap("-60 Ch: 157 BSSID: 02:00:00:00:00:04 ESSID: Net5G ", &sa),
+              "5GHz scanall parses");
+        CHECK(mm_dual_band_observe(&cap_s, sa.channel) && cap_s == MMCapYes,
+              "5GHz scanall sighting latches MMCapYes");
+
+        // A 2.4 GHz line proves nothing: no change, no return-true.
+        MMCap cap24 = MMCapUnknown;
+        CHECK(mm_ap_parse_line("[1][CH:6] Net24 -50", &ap), "2.4GHz list -a parses");
+        CHECK(!mm_dual_band_observe(&cap24, ap.channel) && cap24 == MMCapUnknown,
+              "2.4GHz sighting does NOT infer dual-band (got %d)", cap24);
+
+        // One-way: never downgrade; a 2.4 line leaves an existing Yes latched,
+        // and a 5 GHz line upgrades even an explicit No (positive proof wins).
+        MMCap latched = MMCapYes;
+        CHECK(!mm_dual_band_observe(&latched, 6) && latched == MMCapYes,
+              "2.4GHz never downgrades a latched MMCapYes");
+        MMCap was_no = MMCapNo;
+        CHECK(mm_dual_band_observe(&was_no, 149) && was_no == MMCapYes,
+              "5GHz sighting overrides a stale MMCapNo");
+    }
+
     // noise lines must be rejected
     CHECK(!mm_ap_parse_line("#list -a", &ap), "command echo rejected");
     CHECK(!mm_ap_parse_line("0 selected", &ap), "'selected' line rejected");

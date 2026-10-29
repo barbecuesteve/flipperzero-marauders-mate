@@ -142,6 +142,10 @@ static bool wifi_marauder_scan_live_process_line(WifiMarauderApp* app, const cha
     if(type == MMScanLineAp) {
         MMScanAp cur;
         if(!mm_scanall_parse_ap(line, &cur)) return false;
+        // A 5 GHz sighting proves the radio is dual-band (works on stock fw,
+        // before the info "Dual Band" line exists). Latched; the next rebuild
+        // reads dual_band_state directly, so tags light up mid-scan.
+        mm_dual_band_observe(&app->dual_band_state, cur.channel);
         bool is_new = false;
         int idx = mm_scan_store_upsert(app->scan_aps, &app->scan_ap_count, MM_AP_MAX, &cur, &is_new);
         if(idx >= 0 && is_new) {

@@ -32,6 +32,9 @@ splash_resized.png
 .beads.gate.lock
 .beads/dolt-backup.json
 .beads/dolt-backup-state.json
+# Passive export: the Dolt DB (synced via refs/dolt/data) is the source of
+# truth, and bd regenerates this on every command. Untracked to stop the churn.
+.beads/issues.jsonl
 
 # Built ESP firmware artifacts (regenerate with firmware/build_c5.sh)
 firmware/build/

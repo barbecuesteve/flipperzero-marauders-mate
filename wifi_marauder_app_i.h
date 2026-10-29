@@ -154,8 +154,6 @@ struct WifiMarauderApp {
     // Direct GPS on LPUART1 (pins 15/16), independent of the Marauder USART.
     // NULL when the channel couldn't be acquired. See docs/MULTI_RADIO.md.
     WifiMarauderUart* gps_uart;
-    volatile bool gps_direct_present; // NMEA bytes have arrived on gps_uart
-    volatile uint32_t gps_direct_bytes; // running RX byte count (liveness)
     // GPS-source preference (Settings). true = prefer the direct LPUART NMEA
     // stream (fall back to the C5 command if it can't open); false = force the
     // C5 `gpsdata`/`nmea` command over the Marauder USART. Persisted; default
@@ -268,8 +266,6 @@ struct WifiMarauderApp {
     int sat_fix_type; // GSA fix type (1/2/3); 0 until seen
     int sat_used; // GSA satellites in the solution
     int sat_hdop_x10; // GSA HDOP * 10 (integer, avoids on-device float printf)
-    int sat_speed_x10; // VTG speed km/h * 10
-    bool sat_have_speed; // a VTG sentence has arrived
     int sat_ticks; // tick counter (staleness clock + redraw throttle)
 
     // Marauder's Mate: L3 host discovery

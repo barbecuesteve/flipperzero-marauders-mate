@@ -60,10 +60,6 @@ static void wifi_marauder_bt_list_item_cb(void* context, uint32_t index) {
     view_dispatcher_send_custom_event(app->view_dispatcher, WifiMarauderEventBtSelected);
 }
 
-// Display order -> store index, so the list can be sorted (strongest first)
-// while each row keeps its stable store index as the callback value.
-static int s_bt_order[MM_BT_MAX];
-
 static void wifi_marauder_bt_list_rebuild(WifiMarauderApp* app) {
     uint32_t sel_value = submenu_get_selected_item(app->submenu);
     submenu_reset(app->submenu);
@@ -72,21 +68,12 @@ static void wifi_marauder_bt_list_rebuild(WifiMarauderApp* app) {
     snprintf(header, sizeof(header), "BLE devices: %d", app->bt_device_count);
     submenu_set_header(app->submenu, header);
 
-    for(int i = 0; i < app->bt_device_count; i++) s_bt_order[i] = i;
-    // Insertion sort by RSSI descending (strongest first); count is tiny.
-    for(int i = 1; i < app->bt_device_count; i++) {
-        int v = s_bt_order[i];
-        int j = i - 1;
-        while(j >= 0 && app->bt_devices[s_bt_order[j]].rssi < app->bt_devices[v].rssi) {
-            s_bt_order[j + 1] = s_bt_order[j];
-            j--;
-        }
-        s_bt_order[j + 1] = v;
-    }
-
+    // Stable discovery order: devices keep their row as RSSI fluctuates, so the
+    // highlighted device doesn't shuffle under the cursor. The row value is the
+    // store index, so the cursor (restored by value below) stays on the same
+    // device; only the RSSI number in the label updates in place.
     char label[64];
-    for(int k = 0; k < app->bt_device_count; k++) {
-        int i = s_bt_order[k];
+    for(int i = 0; i < app->bt_device_count; i++) {
         const MMBtDevice* d = &app->bt_devices[i];
         snprintf(label, sizeof(label), "%d %s", d->rssi, d->name);
         submenu_add_item(app->submenu, label, (uint32_t)i, wifi_marauder_bt_list_item_cb, app);

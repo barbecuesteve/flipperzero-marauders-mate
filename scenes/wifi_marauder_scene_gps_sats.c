@@ -1,11 +1,11 @@
 // Marauder's Mate: NMEA satellite view.
 //
 // Runs `nmea` and renders the sky as an SNR bar chart -- the classic GPS
-// "signal bars" instrument -- plus fix quality (2D/3D), satellites-used, HDOP
-// and ground speed. GSV sentences (per constellation, in up to several messages)
-// are upserted into a rolling per-satellite table keyed by constellation+PRN;
-// GSA supplies fix/DOP; VTG supplies speed. Satellites that stop being re-sent
-// age out so the bars track what's actually visible now.
+// "signal bars" instrument -- plus fix quality (2D/3D), satellites-used and
+// HDOP. GSV sentences (per constellation, in up to several messages) are
+// upserted into a rolling per-satellite table keyed by constellation+PRN; GSA
+// supplies fix/DOP. Satellites that stop being re-sent age out so the bars
+// track what's actually visible now.
 #include "../wifi_marauder_app_i.h"
 
 #define MM_SAT_TAG "MM-SAT"
@@ -145,8 +145,6 @@ void wifi_marauder_scene_gps_sats_on_enter(void* context) {
     app->sat_fix_type = 0;
     app->sat_used = 0;
     app->sat_hdop_x10 = 0;
-    app->sat_speed_x10 = 0;
-    app->sat_have_speed = false;
     app->sat_ticks = 0;
     furi_stream_buffer_reset(app->scan_stream);
     furi_string_reset(app->scan_line);
@@ -200,7 +198,6 @@ bool wifi_marauder_scene_gps_sats_on_event(void* context, SceneManagerEvent even
             const char* kind = "----";
             MMNmeaGsv gsv;
             MMNmeaGsa gsa;
-            MMNmeaVtg vtg;
             if(mm_nmea_parse_gsv(sline, &gsv)) {
                 kind = "gsv";
                 for(int i = 0; i < gsv.count; i++) mm_sat_upsert(app, gsv.talker, &gsv.sats[i]);
@@ -209,10 +206,6 @@ bool wifi_marauder_scene_gps_sats_on_event(void* context, SceneManagerEvent even
                 app->sat_fix_type = gsa.fix_type;
                 app->sat_used = gsa.sats_used;
                 app->sat_hdop_x10 = (int)(gsa.hdop * ten);
-            } else if(mm_nmea_parse_vtg(sline, &vtg)) {
-                kind = "vtg";
-                app->sat_speed_x10 = (int)(vtg.speed_kmh * ten);
-                app->sat_have_speed = true;
             }
             if(mm_sat_dbg_lines < MM_SAT_DBG_MAX && sline[0] != '\0') {
                 FURI_LOG_D(MM_SAT_TAG, "rx[%s]: %s", kind, sline);

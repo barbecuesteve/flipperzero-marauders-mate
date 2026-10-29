@@ -138,6 +138,52 @@ int main(void) {
         CHECK(g3.lat_deg < 0 && g3.lon_deg > 0, "GGA S/E signs: %.4f %.4f", g3.lat_deg, g3.lon_deg);
     }
 
+    // =============== NMEA -> MMGpsFix bridge (direct LPUART GPS) ===============
+    {
+        MMGpsFix fix;
+        mm_gps_fix_reset(&fix);
+
+        // GGA fills position, altitude, sats, and fix flag.
+        CHECK(
+            mm_gps_fix_update_nmea(
+                "$GNGGA,091039,3344.49000,N,08419.31778,W,1,09,4.75,219.1,M,,M,,*65", &fix),
+            "bridge: GGA accepted");
+        CHECK(fix.has_fix, "bridge: GGA sets fix");
+        CHECK(fix.have_sats && fix.sats == 9, "bridge: GGA sats %d", fix.sats);
+        CHECK(strcmp(fix.lat, "33.741500") == 0, "bridge: GGA lat '%s'", fix.lat);
+        CHECK(strcmp(fix.lon, "-84.321963") == 0, "bridge: GGA lon '%s'", fix.lon);
+        CHECK(strcmp(fix.alt, "219.1") == 0, "bridge: GGA alt '%s'", fix.alt);
+
+        // RMC adds the datetime (DDMMYY + HHMMSS -> 20YY-MM-DD HH:MM:SS).
+        CHECK(
+            mm_gps_fix_update_nmea(
+                "$GNRMC,091039,A,3344.49000,N,08419.31778,W,0.0,304.3,180926,,,A*7D", &fix),
+            "bridge: RMC accepted");
+        CHECK(strcmp(fix.datetime, "2026-09-18 09:10:39") == 0, "bridge: RMC datetime '%s'",
+              fix.datetime);
+
+        // No-fix GGA clears the fix flag honestly (fix_quality 0).
+        CHECK(
+            mm_gps_fix_update_nmea(
+                "$GNGGA,091039,,,,,0,00,99.99,,M,,M,,*XX", &fix),
+            "bridge: no-fix GGA accepted");
+        CHECK(!fix.has_fix, "bridge: no-fix GGA clears fix");
+
+        // RMC-only cold start: void status, but position still fills as fallback
+        // once active, and non-NMEA / wrong sentences are rejected.
+        MMGpsFix fix2;
+        mm_gps_fix_reset(&fix2);
+        CHECK(
+            mm_gps_fix_update_nmea(
+                "$GNRMC,091039,A,3344.49000,N,08419.31778,W,0.0,304.3,180926,,,A*7D", &fix2),
+            "bridge: RMC-only accepted");
+        CHECK(fix2.has_fix && strcmp(fix2.lat, "33.741500") == 0,
+              "bridge: RMC fallback position '%s'", fix2.lat);
+        CHECK(!mm_gps_fix_update_nmea("$GNVTG,304.3,T,,M,0.0,N,0.0,K,A*2E", &fix2),
+              "bridge: VTG rejected (no fix fields)");
+        CHECK(!mm_gps_fix_update_nmea("not nmea at all", &fix2), "bridge: garbage rejected");
+    }
+
     // ===================== BT: sniffbt concatenated stream =====================
     {
         // v1.10.2 headless C5 glues every record onto one line, no separator.

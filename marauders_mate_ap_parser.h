@@ -305,6 +305,15 @@ bool mm_gps_fix_update(const char* line, MMGpsFix* fix);
 // buffer. Returns the number of lines that updated a field.
 int mm_gps_parse_buffer(const char* text, MMGpsFix* fix);
 
+// Feed ONE raw NMEA sentence into *fix -- the direct-LPUART GPS counterpart to
+// mm_gps_fix_update (which reads the C5 `gpsdata`/`gps -g` label stream). Bridges
+// GGA (position/altitude/sats/fix-quality) and RMC (date/time, plus position as
+// a fallback) into the same MMGpsFix the GPS Data view renders. Lat/lon/alt are
+// formatted with integer math (no %f) to respect -Werror=double-promotion on the
+// target. Accuracy has no NMEA equivalent and is left untouched. Returns true if
+// the sentence was a GGA or RMC that updated the fix.
+bool mm_gps_fix_update_nmea(const char* sentence, MMGpsFix* fix);
+
 // --- NMEA-0183 --------------------------------------------------------------
 
 // Validate a sentence's "*HH" checksum (XOR of chars between '$' and '*').
